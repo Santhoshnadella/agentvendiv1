@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgentVendi v1 — Admin Portal</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: var(--bg-base); margin: 0; font-family: var(--font-main); color: var(--text-primary); }
+    .admin-topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 32px; border-bottom: var(--border-subtle); background: var(--bg-panel); position: sticky; top: 0; z-index: 100; backdrop-filter: blur(16px); }
+    .admin-topbar h1 { font-size: 1.2rem; font-weight: 800; background: var(--gradient-brand); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .admin-topbar .badge-admin { background: var(--neon-magenta); color: var(--bg-base); padding: 3px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+    .admin-grid { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 56px); }
+    .admin-sidebar { background: var(--bg-panel); border-right: var(--border-subtle); padding: 16px 0; }
+    .admin-sidebar .sidebar-btn { display: flex; align-items: center; gap: 10px; padding: 10px 24px; font-size: 0.88rem; cursor: pointer; border: none; background: none; color: var(--text-secondary); width: 100%; text-align: left; transition: all 0.15s; }
+    .admin-sidebar .sidebar-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .admin-sidebar .sidebar-btn.active { background: var(--bg-hover); color: var(--neon-cyan); border-left: 3px solid var(--neon-cyan); }
+    .admin-main { padding: 24px 32px; overflow-y: auto; max-height: calc(100vh - 56px); }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .stat-card { background: var(--bg-panel); border: var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; text-align: center; position: relative; overflow: hidden; }
+    .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--gradient-brand); }
+    .stat-card .stat-icon { font-size: 2rem; margin-bottom: 6px; }
+    .stat-card .stat-value { font-size: 2.2rem; font-weight: 800; }
+    .stat-card .stat-label { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+    .admin-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 0.85rem; }
+    .admin-table th { text-align: left; padding: 10px 14px; border-bottom: var(--border-subtle); color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.5px; }
+    .admin-table td { padding: 10px 14px; border-bottom: var(--border-subtle); }
+    .admin-table tr:hover td { background: var(--bg-hover); }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; }
+    .badge-active { background: rgba(57,255,20,0.15); color: var(--neon-green); }
+    .badge-banned { background: rgba(255,45,149,0.15); color: var(--neon-magenta); }
+    .badge-pending { background: rgba(255,184,0,0.15); color: var(--neon-amber); }
+    .badge-approved { background: rgba(57,255,20,0.15); color: var(--neon-green); }
+    .badge-rejected { background: rgba(255,45,149,0.15); color: var(--neon-magenta); }
+    .activity-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: var(--border-subtle); }
+    .activity-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+    .admin-section-title { font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .action-btn { padding: 4px 12px; border-radius: var(--radius-sm); border: none; cursor: pointer; font-size: 0.75rem; font-weight: 600; transition: opacity 0.15s; }
+    .action-btn:hover { opacity: 0.8; }
+    .action-btn.approve { background: rgba(57,255,20,0.2); color: var(--neon-green); }
+    .action-btn.reject { background: rgba(255,45,149,0.2); color: var(--neon-magenta); }
+    .action-btn.ban { background: rgba(255,45,149,0.2); color: var(--neon-magenta); }
+    .action-btn.promote { background: rgba(0,240,255,0.2); color: var(--neon-cyan); }
+    .donut-chart { width: 120px; height: 120px; border-radius: 50%; margin: 0 auto 8px; position: relative; display: flex; align-items: center; justify-content: center; }
+    .donut-center { font-size: 1.3rem; font-weight: 800; }
+    .chart-bar { height: 20px; border-radius: var(--radius-sm); margin-bottom: 6px; transition: width 0.6s ease; }
+    .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); text-decoration: none; font-size: 0.85rem; }
+    .back-link:hover { color: var(--text-primary); }
+  </style>
+</head>
+<body>
+  <!-- Top Bar -->
+  <div class="admin-topbar">
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <a href="/" class="back-link">← Back to App</a>
+      <h1>🎰 AgentVendi v1</h1>
+      <span class="badge-admin">Admin</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span id="admin-user" style="font-size: 0.85rem; color: var(--text-muted);">Admin</span>
+      <button class="btn btn-outline btn-sm" id="admin-logout">Logout</button>
+    </div>
+  </div>
+
+  <!-- Main Layout -->
+  <div class="admin-grid">
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+      <button class="sidebar-btn active" data-section="overview">📊 Overview</button>
+      <button class="sidebar-btn" data-section="users">👥 Users</button>
+      <button class="sidebar-btn" data-section="agents">🤖 Agents</button>
+      <button class="sidebar-btn" data-section="marketplace">🏪 Marketplace</button>
+      <button class="sidebar-btn" data-section="moderation">🛡️ Moderation</button>
+      <button class="sidebar-btn" data-section="activity">📋 Activity Log</button>
+      <button class="sidebar-btn" data-section="enterprise">🏢 Enterprise</button>
+      <button class="sidebar-btn" data-section="settings">⚙️ Settings</button>
+    </aside>
+
+    <!-- Content -->
+    <main class="admin-main" id="admin-content">
+      <!-- Populated by admin.js -->
+    </main>
+  </div>
+
+  <script type="module" src="admin.js"></script>
+</body>
+</html>

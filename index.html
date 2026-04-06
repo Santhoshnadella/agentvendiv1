@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgentVendi v1 — AI Agent Vending Machine</title>
+  <meta name="description" content="Create, configure, and export AI agents from a vending machine. Open source, plug and play." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content glass-panel">
+        <div id="auth-form-container"></div>
+      </div>
+    </div>
+
+    <!-- Main Layout -->
+    <header id="top-bar">
+      <div class="top-bar-left">
+        <div class="logo">
+          <span class="logo-icon">🎰</span>
+          <span class="logo-text">Agent<span class="accent">Vendi</span></span>
+        </div>
+      </div>
+      <nav class="top-bar-nav">
+        <button class="nav-btn" data-view="home">
+          <span class="nav-icon">🏠</span> Home
+        </button>
+        <button class="nav-btn active" data-view="vending">
+          <span class="nav-icon">🤖</span> Create
+        </button>
+        <button class="nav-btn" data-view="masterclass">
+          <span class="nav-icon">🎓</span> Guide
+        </button>
+        <button class="nav-btn" data-view="my-agents">
+          <span class="nav-icon">📦</span> My Agents
+        </button>
+        <button class="nav-btn" data-view="marketplace">
+          <span class="nav-icon">🏪</span> Marketplace
+        </button>
+        <button class="nav-btn" data-view="teams">
+          <span class="nav-icon">👥</span> Teams
+        </button>
+        <button class="nav-btn" data-view="analytics">
+          <span class="nav-icon">📊</span> Analytics
+        </button>
+        <button class="nav-btn" data-view="sandbox">
+          <span class="nav-icon">🧪</span> Sandbox
+        </button>
+      </nav>
+      <div class="top-bar-right">
+        <button id="theme-toggle" class="icon-btn" title="Toggle theme">🌙</button>
+        <div id="user-menu" class="user-menu">
+          <button id="user-menu-btn" class="icon-btn">👤</button>
+          <div id="user-dropdown" class="dropdown hidden">
+            <button data-action="profile">Profile</button>
+            <button data-action="logout">Logout</button>
+          </div>
+        </div>
+        <button id="login-btn" class="btn btn-glow">Sign In</button>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <!-- Home View -->
+      <section id="view-home" class="view active home-view"></section>
+
+      <!-- Masterclass View -->
+      <section id="view-masterclass" class="view"></section>
+
+      <!-- Vending Machine View -->
+      <section id="view-vending" class="view">
+        <div class="vending-machine">
+          <div class="vending-header">
+            <div class="vending-title">
+              <h1>Agent<span class="accent">Vendi</span> <sup style="font-size: 0.35em; background: var(--neon-cyan); color: var(--bg-base); padding: 2px 8px; border-radius: 20px; vertical-align: super; font-weight: 700;">v1</sup></h1>
+              <p class="vending-subtitle">Insert your specs. Dispense your agent.</p>
+            </div>
+            <div class="neon-strip"></div>
+          </div>
+
+          <div class="vending-body">
+            <!-- Tab Navigation -->
+            <div class="tab-rail">
+              <button class="tab-btn active" data-tab="selection">
+                <span class="tab-num">1</span>
+                <span class="tab-label">Select</span>
+                <span class="tab-check">✓</span>
+              </button>
+              <button class="tab-btn" data-tab="behavior">
+                <span class="tab-num">2</span>
+                <span class="tab-label">Behavior</span>
+                <span class="tab-check">✓</span>
+              </button>
+              <button class="tab-btn" data-tab="knowledge">
+                <span class="tab-num">3</span>
+                <span class="tab-label">Knowledge</span>
+                <span class="tab-check">✓</span>
+              </button>
+              <button class="tab-btn" data-tab="role">
+                <span class="tab-num">4</span>
+                <span class="tab-label">Role</span>
+                <span class="tab-check">✓</span>
+              </button>
+              <button class="tab-btn" data-tab="guardrails">
+                <span class="tab-num">5</span>
+                <span class="tab-label">Guards</span>
+                <span class="tab-check">✓</span>
+              </button>
+              <button class="tab-btn" data-tab="skills">
+                <span class="tab-num">6</span>
+                <span class="tab-label">Skills</span>
+                <span class="tab-check">✓</span>
+              </button>
+              <button class="tab-btn" data-tab="cognitive">
+                <span class="tab-num">7</span>
+                <span class="tab-label">Cognitive</span>
+                <span class="tab-check">✓</span>
+              </button>
+            </div>
+
+            <!-- Tab Content Panel -->
+            <div class="tab-display">
+              <div id="tab-content" class="tab-content-area"></div>
+            </div>
+
+            <!-- Live Preview Sidebar -->
+            <div class="preview-sidebar">
+              <div class="preview-header">
+                <h3>Live Preview</h3>
+                <select id="preview-format" class="select-sm">
+                  <option value="cursorrules">.cursorrules</option>
+                  <option value="windsurfrules">.windsurfrules</option>
+                  <option value="copilot">copilot-instructions.md</option>
+                  <option value="claude">CLAUDE.md</option>
+                  <option value="aider">.aider.conf.yml</option>
+                  <option value="json">agent.json</option>
+                </select>
+              </div>
+              <pre id="preview-code" class="preview-code"><code>// Configure your agent to see a live preview...</code></pre>
+            </div>
+          </div>
+
+          <!-- Dispense Bar -->
+          <div class="vending-footer">
+            <div class="progress-bar">
+              <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+            </div>
+            <div class="footer-actions">
+              <button id="btn-prev" class="btn btn-outline" disabled>← Back</button>
+              <button id="btn-next" class="btn btn-glow">Next →</button>
+              <button id="btn-dispense" class="btn btn-dispense hidden">
+                <span class="dispense-text">🎰 Dispense Agent</span>
+                <span class="dispense-loading hidden">⚙️ Generating...</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- My Agents View -->
+      <section id="view-my-agents" class="view"></section>
+
+      <!-- Marketplace View -->
+      <section id="view-marketplace" class="view"></section>
+
+      <!-- Teams View -->
+      <section id="view-teams" class="view"></section>
+
+      <!-- Analytics View -->
+      <section id="view-analytics" class="view"></section>
+
+      <!-- Sandbox View -->
+      <section id="view-sandbox" class="view"></section>
+    </main>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+  </div>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

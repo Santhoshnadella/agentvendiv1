@@ -1,0 +1,142 @@
+// ============================================================
+// Tab 1 — Agent Selection (with Templates)
+// ============================================================
+
+import { TEMPLATES, getAllCategories } from '../templates/library.js';
+
+export function renderSelectionTab(container, state) {
+  container.innerHTML = `
+    <div class="tab-section-title">🎯 Pick Your Agent</div>
+    <div class="tab-section-desc">Start from a template or build from scratch. Choose single agent or a multi-agent crew.</div>
+
+    <!-- Templates Section -->
+    <div class="form-group">
+      <label class="form-label">Quick Start Templates</label>
+      <div style="display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap;">
+        <button class="tag active" data-cat="all">All</button>
+        ${getAllCategories().map(c => `<button class="tag" data-cat="${c}">${c}</button>`).join('')}
+      </div>
+      <div class="skill-grid" id="template-grid" style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));">
+        ${TEMPLATES.map(t => `
+          <div class="skill-card template-card" data-template="${t.id}" data-category="${t.category}">
+            <div class="skill-icon">${t.emoji}</div>
+            <div class="skill-name">${t.name}</div>
+            <div class="skill-desc">${t.description.substring(0, 60)}...</div>
+            ${t.config.mode === 'multi' ? '<div style="margin-top: 4px;"><span class="tag active" style="font-size: 0.65rem; padding: 2px 6px;">Multi-Agent</span></div>' : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div style="position: relative; text-align: center; margin: 20px 0;">
+      <hr style="border: none; border-top: 1px solid var(--glass-border);" />
+      <span style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--bg-panel); padding: 0 16px; color: var(--text-muted); font-size: 0.82rem;">or configure manually</span>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Agent Mode</label>
+      <div class="toggle-group">
+        <button class="toggle-option ${state.mode === 'single' ? 'active' : ''}" data-mode="single">
+          ⚡ Single Agent
+        </button>
+        <button class="toggle-option ${state.mode === 'multi' ? 'active' : ''}" data-mode="multi">
+          👥 Multi-Agent Crew
+        </button>
+      </div>
+    </div>
+
+    <div id="agents-list" class="form-group">
+      ${renderAgentsList(state)}
+    </div>
+
+    <button id="add-agent-btn" class="btn btn-outline btn-sm ${state.mode === 'single' ? 'hidden' : ''}" style="margin-top: 8px;">
+      ➕ Add Another Agent
+    </button>
+  `;
+
+  // Template category filter
+  container.querySelectorAll('.tag[data-cat]').forEach(tag => {
+    tag.addEventListener('click', () => {
+      container.querySelectorAll('.tag[data-cat]').forEach(t => t.classList.remove('active'));
+      tag.classList.add('active');
+      const cat = tag.dataset.cat;
+      container.querySelectorAll('.template-card').forEach(card => {
+        card.style.display = (cat === 'all' || card.dataset.category === cat) ? '' : 'none';
+      });
+    });
+  });
+
+  // Template selection
+  container.querySelectorAll('.template-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const template = TEMPLATES.find(t => t.id === card.dataset.template);
+      if (template) {
+        Object.assign(state, JSON.parse(JSON.stringify(template.config)));
+        state.completedTabs = ['selection', 'behavior', 'knowledge', 'role', 'guardrails', 'skills'];
+        window.showToast?.(`🎯 Loaded "${template.name}" template!`, 'success');
+        renderSelectionTab(container, state);
+        window.dispatchStateChange();
+      }
+    });
+  });
+
+  // Toggle mode
+  container.querySelectorAll('.toggle-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.mode = btn.dataset.mode;
+      if (state.mode === 'single' && state.agents.length > 1) {
+        state.agents = [state.agents[0]];
+      }
+      renderSelectionTab(container, state);
+      window.dispatchStateChange();
+    });
+  });
+
+  // Add agent
+  container.querySelector('#add-agent-btn')?.addEventListener('click', () => {
+    state.agents.push({
+      name: `Agent ${state.agents.length + 1}`,
+      id: crypto.randomUUID?.() || Date.now().toString(),
+    });
+    renderSelectionTab(container, state);
+    window.dispatchStateChange();
+  });
+
+  // Agent name editing
+  container.querySelectorAll('.agent-name-input').forEach(input => {
+    input.addEventListener('input', (e) => {
+      const agent = state.agents.find(a => a.id === e.target.dataset.id);
+      if (agent) agent.name = e.target.value;
+      window.dispatchStateChange();
+    });
+  });
+
+  // Remove agent
+  container.querySelectorAll('.remove-agent-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.agents = state.agents.filter(a => a.id !== btn.dataset.id);
+      renderSelectionTab(container, state);
+      window.dispatchStateChange();
+    });
+  });
+}
+
+function renderAgentsList(state) {
+  return state.agents.map((agent, i) => `
+    <div class="agent-list-item" style="animation-delay: ${i * 0.05}s">
+      <div class="agent-avatar" style="background: linear-gradient(135deg, hsl(${i * 60 + 280}, 80%, 55%), hsl(${i * 60 + 320}, 80%, 45%));">
+        🤖
+      </div>
+      <div style="flex: 1;">
+        <input class="form-input agent-name-input"
+          value="${agent.name}"
+          data-id="${agent.id}"
+          placeholder="Agent name..."
+          style="font-weight: 600;" />
+      </div>
+      ${state.agents.length > 1 ? `
+        <button class="btn btn-danger btn-sm remove-agent-btn" data-id="${agent.id}">✕</button>
+      ` : ''}
+    </div>
+  `).join('');
+}
