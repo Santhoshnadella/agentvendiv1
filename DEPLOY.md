@@ -157,3 +157,31 @@ sudo systemctl restart caddy
 - [ ] Test with `NODE_ENV=production node server/index.js`
 - [ ] Set up HTTPS (Caddy auto-SSL or Let's Encrypt)
 - [ ] Create first admin account, then check `/admin`
+
+---
+
+## 🌐 Hosting a Live Public Demo
+
+To host a public demo with a persistent backend (Vercel + Supabase/Ollama):
+
+### 1. Database (Supabase / Postgres)
+AgentVendi uses SQLite by default but supports Postgres for production. 
+1. Create a free project on [Supabase](https://supabase.com).
+2. Get your connection string (e.g., `postgres://postgres.abc...`)
+3. Set `DATABASE_URL` in your environment variables.
+
+### 2. LLM Backend (Ollama / Groq / OpenAI)
+For a "Live Demo", you have two options:
+- **Local Proxy**: Use [Cloudflare Tunnels](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) to expose your local Ollama instance securely.
+- **API Provider**: Use Groq or OpenAI for the demo backend by setting `OPENAI_API_KEY`.
+
+### 3. Vercel Deployment
+```bash
+# Push to GitHub, then click "New Project" in Vercel
+# Set the following Environment Variables:
+# DATABASE_URL=postgres://...
+# JWT_SECRET=...
+# OPENAI_API_KEY=... (optional)
+```
+AgentVendi detects the environment and switches to production mode automatically.
+

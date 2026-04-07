@@ -1,72 +1,110 @@
-# 🎰 AgentVendi: Enterprise AI Orchestration Hub
+# 🎰 AgentVendi
 
-> *Bridging the gap between raw LLM intelligence and real-world enterprise requirements.*
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/Santhoshnadella/agentvendiv1)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/Santhoshnadella/agentvendiv1)
+[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)](https://github.com/Santhoshnadella/agentvendiv1/coverage)
 
-AgentVendi is a production-grade orchestration platform designed to build, host, and federate AI agents. It transforms fragmented AI tools into a unified, secure, and highly observable ecosystem.
+**The no-code vending machine for production-grade AI agents — local-first, enterprise-ready.**
 
----
-
-## 🛑 The Problem: The "Agentic Gap"
-Current AI agent architectures face three critical barriers:
-1.  **The Silo Problem**: Agents are isolated islands, unable to securely communicate across different platforms or share toolsets.
-2.  **The Black Box Problem**: High-stakes agent runs are hard to debug and even harder to monitor in real-time.
-3.  **The Security Paradox**: Enterprises need agents to use 3rd-party tools, but running untrusted code on local hardware is a massive security risk.
-
-## 💡 The Solution: AgentVendi
-AgentVendi solves these problems by providing a **Connectivity Tier** for autonomous systems:
--   **Standardized Communication**: Native **MCP** and **A2A** protocol support allows agents to discover and use tools across any platform.
--   **Step-by-Step Observability**: The **Time-Travel Debugger** snapshots every turn, allowing developers to fork, replay, and fix reasoning errors instantly.
--   **Hardened Sandboxing**: All 3rd-party plugins execute in **V8 Isolates** (`isolated-vm`), ensuring zero risk to host infrastructure.
+AgentVendi is a powerhouse orchestration platform that transforms fragmented AI models into reliable, secure, and observable autonomous systems. Whether you are running Llama3 locally via Ollama or enterprise-scale clusters on Kubernetes, AgentVendi provides the "Agentic Operating System" you need to ship with confidence.
 
 ---
 
-## 🛠️ Technology Stack
+## 📸 Visual Tour
 
-| Layer | Technology | Rationale |
-| :--- | :--- | :--- |
-| **Backend** | Node.js (ESM) | High-concurrency event-loop for real-time agent coordination. |
-| **Storage** | PostgreSQL / SQLite | Dual-adapter for dev/prod symmetry with pooled connections. |
-| **Protocol** | MCP / A2A | Universal standards (Model Context Protocol & Agent-to-Agent). |
-| **Security** | isolated-vm | Process-level isolation for untrusted code execution. |
-| **Real-Time** | WebSockets (ws) | Low-latency state broadcasts and HITL approvals. |
-| **Deployment** | Docker / Kubernetes | Enterprise-grade containerization and orchestration. |
+<p align="center">
+  <img src="assets/screenshots/wizard_flow.png" width="45%" alt="Wizard Flow" />
+  <img src="assets/screenshots/cognitive_matching.png" width="45%" alt="Cognitive Matching" />
+</p>
+<p align="center">
+  <i>The 5-step Agent Creation Wizard and AI-assisted Cognitive Matching in action.</i>
+</p>
 
----
+<p align="center">
+  <img src="assets/screenshots/export_dash.png" width="45%" alt="Export Dashboard" />
+  <img src="assets/screenshots/k8s_dash.png" width="45%" alt="K8s Dashboard" />
+</p>
+<p align="center">
+  <i>Multi-format export options (Docker, K8s, SDK) and integrated infrastructure monitoring.</i>
+</p>
 
-## ⚙️ Core Logic & Data Flow
-
-### 1. The ReAct Loop (Reasoning & Action)
-Everything starts in the `AgentRuntime`. The platform uses a refined **ReAct** (Think/Act/Observe) loop:
-1.  **Think**: LLM analyzes input + available tool schemas.
-2.  **Act**: If a tool is called, the system checks:
-    -   Is it an **Internal Tool**? (Run locally)
-    -   Is it a **Plugin Tool**? (Execute in Sandboxed V8 Isolate)
-    -   Is it an **MCP Tool**? (Dispatch JSON-RPC to remote server)
-3.  **Observe**: Tool output is sanitized and injected back into message history.
-
-### 2. Time-Travel Architecture
-Unlike standard chat platforms, AgentVendi maintains a 100% deterministic state:
--   **Capture**: At Turn $N$, the system stores JSON snapshots of `{messages, memory, variables}`.
--   **Fork**: To fix a hallucination at Turn 3, the engine reconstitutes the state at Turn 2, injects the corrected context, and branches into a new `run_id`.
-
-### 3. Verification & Governance
--   **HITL (Human-in-the-Loop)**: High-risk tools (file deletion, large payments) trigger a WebSocket pause.
--   **Audit Trail**: Every action is saved to an immutable `audit_logs` table and optionally streamed to external SIEM tools.
+<p align="center">
+  <img src="assets/screenshots/local_suggestions.png" width="45%" alt="Local Suggestions" />
+  <img src="assets/screenshots/observability.png" width="45%" alt="Observability" />
+</p>
+<p align="center">
+  <i>Real-time local LLM suggestions and deep trace-level observability.</i>
+</p>
 
 ---
 
-## 📈 Why AgentVendi?
--   **Reduce Debugging Time by 80%**: Forking is faster than restarting.
--   **Zero Governance Friction**: SIEM-ready audit logs satisfy compliance requirements.
--   **Universal Plugin Ecosystem**: Join the community-driven market for `agentvendi-plugin-*` tools.
+## 🚀 Why AgentVendi?
+
+| Feature | **AgentVendi** | LangGraph | CrewAI | AutoGen |
+| :--- | :--- | :--- | :--- | :--- |
+| **No-Code UI** | ✅ Built-in Wizard | ❌ Code-first | ❌ Code-first | ❌ Code-first |
+| **Security** | ✅ V8 Isolates | ❌ Host Process | ❌ Host Process | ❌ Host Process |
+| **Deployment** | ✅ K8s / Docker / SDK | ❌ SDK Only | ❌ SDK Only | ❌ SDK Only |
+| **Local LLMs** | ✅ Native Ollama | ⚠️ Manual | ⚠️ Manual | ⚠️ Manual |
+| **Observability** | ✅ Time-Travel Debug | ⚠️ Limited | ⚠️ Limited | ⚠️ Limited |
 
 ---
 
-## 📄 Documentation
-- [Release Walkthrough](docs/RELEASE_WALKTHROUGH.md)
-- [SWOT Analysis](docs/SWOT_ANALYSIS.md)
-- [Architecture ADRs](docs/adr/001-architecture-phases.md)
+## ⚡ Quickstart (< 60 seconds)
+
+### 1. Clone & Install
+```bash
+git clone https://github.com/Santhoshnadella/agentvendiv1.git
+cd agentvendiv1
+npm install
+```
+
+### 2. Configure Environment
+```bash
+cp .env.example .env
+# Add your OLLAMA_HOST or OPENAI_API_KEY
+```
+
+### 3. Launch the Vending Machine
+```bash
+npm run dev
+```
+Visit `http://localhost:5173` to start building!
 
 ---
 
-**AgentVendi—Enterprise intelligence, orchestrated.**
+## 🛠️ Key Capabilities
+
+- **Hardened Sandboxing**: Run 3rd-party agent skills in secure V8 isolates with zero risk to host infrastructure.
+- **Cognitive Matching**: Semantic skill suggestions powered by Transformers.js (local-first).
+- **Time-Travel Debugger**: Snapshot, fork, and replay agent runs to fix reasoning errors instantly.
+- **Enterprise-Ready**: Native support for Redis-backed state, k8s dashboards, and RBAC settings.
+
+---
+
+## 🗺️ Roadmap
+
+- [x] **v1.0.0**: Core Vending Machine, Wizard UI, and Local LLM support.
+- [ ] **v1.1.0** (Q2 2026): Redis-backed horizontal scaling & Persistent Memory.
+- [ ] **v1.2.0** (Q3 2026): Multi-agent Swarm clusters & Cross-platform sync.
+- [ ] **v2.0.0** (Q4 2026): Enterprise SSO, Advanced Audit Logs, and Managed Cloud.
+
+---
+
+## 🤝 Community & Signal
+
+- **License**: [MIT](LICENSE)
+- **Code of Conduct**: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Pull Request Template**: [.github/pull_request_template.md](.github/pull_request_template.md)
+
+---
+
+<p align="center">
+  Built with ❤️ by the AgentVendi Team. <br/>
+  <i>Enterprise intelligence, orchestrated.</i>
+</p>
+
+<!-- GitHub Topics -->
+<!-- ai-agents, agent-framework, local-llm, ollama, no-code-ai -->

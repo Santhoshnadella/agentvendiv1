@@ -1,0 +1,36 @@
+{
+  "name": "@agentvendi/backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@agentvendi/shared": "1.0.0",
+    "express": "^4.21.0",
+    "better-sqlite3": "^11.6.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "zod": "^3.23.0",
+    "winston": "^3.19.0",
+    "helmet": "^8.0.0",
+    "express-rate-limit": "^7.4.0",
+    "ollama": "^0.5.0",
+    "p-retry": "^8.0.0",
+    "uuid": "^10.0.0",
+    "ioredis": "^5.10.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/bcryptjs": "^2.4.6",
+    "nodemon": "^3.1.0",
+    "vitest": "^2.1.9",
+    "typescript": "^5.4.5"
+  }
+}

@@ -11,14 +11,14 @@ import 'dotenv/config';
 
 const { Pool } = pg;
 
-/** @typedef {(sql: string, params?: any[]) => Promise<any[]>} QueryFn */
+export type QueryFn = (sql: string, params?: any[]) => Promise<any>;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = process.env.SQLITE_DB_PATH || path.join(__dirname, '..', 'data', 'agentvendi.db');
+const DB_PATH = process.env.SQLITE_DB_PATH || path.join(__dirname, '..', '..', 'data', 'agentvendi.db');
 const DB_TYPE = process.env.DB_TYPE || 'sqlite'; // 'postgresql' or 'sqlite'
 
-let sqliteDb = null;
-let pgPool = null;
+let sqliteDb: Database.Database | null = null;
+let pgPool: pg.Pool | null = null;
 
 export function getDB() {
     return DB_TYPE === 'postgresql' ? pgPool : sqliteDb;
@@ -78,7 +78,7 @@ export async function closeSession() {
  * Abstract SQLite '?' parameters to PostgreSQL '$1, $2'
  * and handle return formats.
  */
-export async function query(sqlText, params = []) {
+export async function query(sqlText: string, params: any[] = []): Promise<any> {
   if (DB_TYPE === 'postgresql') {
     if (!pgPool) await initDB();
     
@@ -86,13 +86,13 @@ export async function query(sqlText, params = []) {
     let index = 1;
     const pgSql = sqlText.replace(/\?/g, () => `$${index++}`);
     
-    const result = await pgPool.query(pgSql, params);
+    const result = await pgPool!.query(pgSql, params);
     // pg driver returns rows
     return result.rows;
   } else {
     if (!sqliteDb) await initDB();
     
-    const stmt = sqliteDb.prepare(sqlText);
+    const stmt = sqliteDb!.prepare(sqlText);
     
     // Determine if it's a mutation or selection
     const isMutation = /^\s*(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|PRAGMA)/i.test(sqlText);
@@ -106,18 +106,18 @@ export async function query(sqlText, params = []) {
   }
 }
 
-export async function querySingle(sqlText, params = []) {
+export async function querySingle(sqlText: string, params: any[] = []): Promise<any> {
   if (DB_TYPE === 'postgresql') {
     if (!pgPool) await initDB();
     let index = 1;
     const pgSql = sqlText.replace(/\?/g, () => `$${index++}`);
-    const result = await pgPool.query(pgSql, params);
+    const result = await pgPool!.query(pgSql, params);
     return result.rows[0] || null;
   } else {
     if (!sqliteDb) await initDB();
     const isMutation = /^\s*(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|PRAGMA)/i.test(sqlText);
     if (isMutation) throw new Error('querySingle cannot be used for mutations');
-    const stmt = sqliteDb.prepare(sqlText);
+    const stmt = sqliteDb!.prepare(sqlText);
     return stmt.get(...params) || null;
   }
 }
@@ -126,12 +126,12 @@ export async function querySingle(sqlText, params = []) {
  * Transaction wrapper
  * Usage: await withTransaction(async (queryFn) => { await queryFn('INSERT...', []); })
  */
-export async function withTransaction(callback) {
+export async function withTransaction<T>(callback: (query: QueryFn) => Promise<T>): Promise<T> {
   if (DB_TYPE === 'postgresql') {
     if (!pgPool) await initDB();
-    const client = await pgPool.connect();
+    const client = await pgPool!.connect();
     
-    const pgQueryWrapper = async (sqlText, params = []) => {
+    const pgQueryWrapper: QueryFn = async (sqlText: string, params: any[] = []) => {
       let index = 1;
       const pgSql = sqlText.replace(/\?/g, () => `$${index++}`);
       const result = await client.query(pgSql, params);
@@ -152,9 +152,9 @@ export async function withTransaction(callback) {
   } else {
     if (!sqliteDb) await initDB();
     
-    const sqliteQueryWrapper = async (sqlText, params = []) => {
+    const sqliteQueryWrapper: QueryFn = async (sqlText: string, params: any[] = []) => {
        const isMutation = /^\s*(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)/i.test(sqlText);
-       const stmt = sqliteDb.prepare(sqlText);
+       const stmt = sqliteDb!.prepare(sqlText);
        if(isMutation){
            const info = stmt.run(...params);
            return { changes: info.changes, lastInsertRowid: info.lastInsertRowid };
@@ -164,23 +164,21 @@ export async function withTransaction(callback) {
     };
     
     try {
-        sqliteDb.prepare('BEGIN').run();
+        sqliteDb!.prepare('BEGIN').run();
         const result = await callback(sqliteQueryWrapper);
-        sqliteDb.prepare('COMMIT').run();
+        sqliteDb!.prepare('COMMIT').run();
         return result;
     } catch (e) {
-        sqliteDb.prepare('ROLLBACK').run();
+        sqliteDb!.prepare('ROLLBACK').run();
         throw e;
     }
   }
 }
+
 /**
  * Semantic Vector Search Abstraction (pgvector ready)
- * @param {string} query - The search query
- * @param {number} limit - Number of results
- * @returns {Promise<any[]>}
  */
-export async function semanticSearch(queryText, limit = 5) {
+export async function semanticSearch(queryText: string, limit: number = 5): Promise<any[]> {
     if (DB_TYPE === 'postgresql') {
         // Assume pgvector is enabled. Use <=> or <=> similarity
         return await query(`
@@ -193,10 +191,11 @@ export async function semanticSearch(queryText, limit = 5) {
         // SQLite Fallback (Keyword based ranking)
         const docs = await query('SELECT * FROM vector_docs LIMIT 100');
         const queryWords = queryText.toLowerCase().split(/\s+/);
-        return docs.map(doc => {
+        return docs.map((doc: any) => {
             let score = 0;
             queryWords.forEach(w => { if (doc.content.toLowerCase().includes(w)) score++; });
             return { ...doc, score };
-        }).filter(d => d.score > 0).sort((a,b) => b.score - a.score).slice(0, limit);
+        }).filter((d: any) => d.score > 0).sort((a: any, b: any) => b.score - a.score).slice(0, limit);
     }
 }
+
