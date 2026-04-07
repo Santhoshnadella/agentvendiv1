@@ -111,6 +111,31 @@ export function initDB() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS agent_runs (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT,
+      user_id TEXT,
+      status TEXT,
+      input TEXT,
+      output TEXT,
+      duration INTEGER,
+      cost REAL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (agent_id) REFERENCES agents(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_run_logs (
+      id TEXT PRIMARY KEY,
+      run_id TEXT,
+      role TEXT,
+      content TEXT,
+      tool_name TEXT,
+      tool_id TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (run_id) REFERENCES agent_runs(id)
+    );
+
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL

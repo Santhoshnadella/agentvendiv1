@@ -11,7 +11,10 @@ export function renderSelectionTab(container, state) {
 
     <!-- Templates Section -->
     <div class="form-group">
-      <label class="form-label">Quick Start Templates</label>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+         <label class="form-label" style="margin-bottom: 0;">Quick Start Templates</label>
+         <button class="btn btn-outline btn-sm" id="import-script-btn">📥 Import Vendi Script</button>
+      </div>
       <div style="display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap;">
         <button class="tag active" data-cat="all">All</button>
         ${getAllCategories().map(c => `<button class="tag" data-cat="${c}">${c}</button>`).join('')}
@@ -53,6 +56,22 @@ export function renderSelectionTab(container, state) {
       ➕ Add Another Agent
     </button>
   `;
+
+  // Import script
+  container.querySelector('#import-script-btn')?.addEventListener('click', () => {
+    const script = prompt('Paste your AgentVendi Script (JSON) here:');
+    if (script) {
+      try {
+        const parsed = JSON.parse(script);
+        Object.assign(state, parsed);
+        window.showToast?.('✅ Script imported successfully!', 'success');
+        renderSelectionTab(container, state);
+        window.dispatchStateChange();
+      } catch (e) {
+        window.showToast?.('❌ Invalid script format.', 'error');
+      }
+    }
+  });
 
   // Template category filter
   container.querySelectorAll('.tag[data-cat]').forEach(tag => {
@@ -111,6 +130,24 @@ export function renderSelectionTab(container, state) {
     });
   });
 
+  // Agent role editing
+  container.querySelectorAll('.agent-role-input').forEach(input => {
+    input.addEventListener('input', (e) => {
+      const agent = state.agents.find(a => a.id === e.target.dataset.id);
+      if (agent) agent.role = e.target.value;
+      window.dispatchStateChange();
+    });
+  });
+
+  // Agent handoff editing
+  container.querySelectorAll('.agent-handoff-select').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const agent = state.agents.find(a => a.id === e.target.dataset.id);
+      if (agent) agent.handoff = e.target.value;
+      window.dispatchStateChange();
+    });
+  });
+
   // Remove agent
   container.querySelectorAll('.remove-agent-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -123,19 +160,41 @@ export function renderSelectionTab(container, state) {
 
 function renderAgentsList(state) {
   return state.agents.map((agent, i) => `
-    <div class="agent-list-item" style="animation-delay: ${i * 0.05}s">
-      <div class="agent-avatar" style="background: linear-gradient(135deg, hsl(${i * 60 + 280}, 80%, 55%), hsl(${i * 60 + 320}, 80%, 45%));">
-        🤖
+    <div class="agent-list-item card" style="animation-delay: ${i * 0.05}s; display: block; margin-bottom: 16px; padding: 16px;">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+        <div class="agent-avatar" style="background: linear-gradient(135deg, hsl(${i * 60 + 280}, 80%, 55%), hsl(${i * 60 + 320}, 80%, 45%));">
+          🤖
+        </div>
+        <div style="flex: 1;">
+          <input class="form-input agent-name-input"
+            value="${agent.name}"
+            data-id="${agent.id}"
+            placeholder="Agent name..."
+            style="font-weight: 600;" />
+        </div>
+        ${state.agents.length > 1 ? `
+          <button class="btn btn-danger btn-sm remove-agent-btn" data-id="${agent.id}">✕</button>
+        ` : ''}
       </div>
-      <div style="flex: 1;">
-        <input class="form-input agent-name-input"
-          value="${agent.name}"
-          data-id="${agent.id}"
-          placeholder="Agent name..."
-          style="font-weight: 600;" />
-      </div>
-      ${state.agents.length > 1 ? `
-        <button class="btn btn-danger btn-sm remove-agent-btn" data-id="${agent.id}">✕</button>
+
+      ${state.mode === 'multi' ? `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+           <div class="form-group">
+              <label class="form-label" style="font-size: 0.75rem;">Role / Specialization</label>
+              <input class="form-input agent-role-input" 
+                value="${agent.role || ''}" 
+                data-id="${agent.id}"
+                placeholder="e.g. Research, Logic, Coding" />
+           </div>
+           <div class="form-group">
+              <label class="form-label" style="font-size: 0.75rem;">Handoff Permission</label>
+              <select class="form-input agent-handoff-select" data-id="${agent.id}">
+                 <option value="none" ${agent.handoff === 'none' ? 'selected' : ''}>No Handoff</option>
+                 <option value="automatic" ${agent.handoff === 'automatic' ? 'selected' : ''}>Automatic</option>
+                 <option value="ask" ${agent.handoff === 'ask' ? 'selected' : ''}>Ask User</option>
+              </select>
+           </div>
+        </div>
       ` : ''}
     </div>
   `).join('');

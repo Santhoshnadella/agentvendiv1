@@ -58,24 +58,26 @@ export function renderSandbox(container, agentState) {
     chatContainer.innerHTML += `<div class="chat-bubble user">${escapeHtml(msg)}</div>`;
 
     // Try Ollama
+    // Use real runtime
     try {
-      const res = await fetch('/api/ai/cognitive-chat', {
+      const res = await fetch(`/api/runtime/execute/${agentState.agents[0]?.id || 'preview'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: msg,
-          history: chatHistory,
-          systemOverride: systemPrompt,
-          phase: 0,
+          input: msg,
+          config: {
+             system_prompt: systemPrompt,
+             mode: agentState.mode
+          }
         }),
       });
       if (res.ok) {
         const data = await res.json();
         chatHistory.push({ role: 'user', text: msg });
-        chatHistory.push({ role: 'bot', text: data.response });
-        chatContainer.innerHTML += `<div class="chat-bubble bot">${escapeHtml(data.response)}</div>`;
+        chatHistory.push({ role: 'bot', text: data.result });
+        chatContainer.innerHTML += `<div class="chat-bubble bot">${escapeHtml(data.result)}</div>`;
       } else {
-        throw new Error('API not available');
+        throw new Error('Runtime failed');
       }
     } catch (e) {
       // Simulated response based on agent config

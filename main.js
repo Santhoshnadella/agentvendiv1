@@ -16,6 +16,8 @@ import { renderMyAgents } from './views/my-agents.js';
 import { renderTeams } from './views/teams.js';
 import { renderAnalytics } from './views/analytics.js';
 import { renderSandbox } from './views/sandbox.js';
+import { renderDashboard } from './views/dashboard.js';
+import { renderEvaluator } from './views/evaluator.js';
 import { renderAuth, initAuth, getUser, logout } from './views/auth.js';
 import { generatePreview } from './export/generator.js';
 import { downloadBundle } from './export/bundler.js';
@@ -140,6 +142,8 @@ function switchView(view) {
     else if (view === 'my-agents') renderMyAgents(target);
     else if (view === 'teams') renderTeams(target);
     else if (view === 'analytics') renderAnalytics(target);
+    else if (view === 'dashboard') renderDashboard(target);
+    else if (view === 'evaluator') renderEvaluator(target);
     else if (view === 'sandbox') renderSandbox(target, state);
     else if (view === 'vending') renderCurrentTab();
   }
