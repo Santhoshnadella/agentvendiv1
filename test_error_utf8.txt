@@ -1,0 +1,59 @@
+﻿
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mK:/agentvendi[39m
+
+ [31m├ù[39m tests/runtime.test.js[2m > [22mTool Registry[2m > [22mshould have all required tools registered[33m 532[2mms[22m[39m
+[31m   ΓåÆ Failed to load url node-fetch (resolved id: node-fetch) in K:/agentvendi/server/lib/audit.js. Does the file exist?[39m
+ [31m├ù[39m tests/runtime.test.js[2m > [22mTool Registry[2m > [22mshould parse JSON block tool calls
+[31m   ΓåÆ Failed to load url node-fetch (resolved id: node-fetch) in K:/agentvendi/server/lib/audit.js. Does the file exist?[39m
+ [31m├ù[39m tests/runtime.test.js[2m > [22mTool Registry[2m > [22mshould return null for messages without tool calls
+[31m   ΓåÆ Failed to load url node-fetch (resolved id: node-fetch) in K:/agentvendi/server/lib/audit.js. Does the file exist?[39m
+ [31m├ù[39m tests/runtime.test.js[2m > [22mInfinite Loop Detection[2m > [22mshould detect repeated identical tool calls
+[31m   ΓåÆ Failed to load url node-fetch (resolved id: node-fetch) in K:/agentvendi/server/lib/audit.js. Does the file exist?[39m
+ [31m├ù[39m tests/runtime.test.js[2m > [22mInfinite Loop Detection[2m > [22mshould NOT flag different tool calls as loops
+[31m   ΓåÆ Failed to load url node-fetch (resolved id: node-fetch) in K:/agentvendi/server/lib/audit.js. Does the file exist?[39m
+ [31m├ù[39m tests/runtime.test.js[2m > [22mHallucination Guardrails[2m > [22mshould flag stale knowledge disclaimers
+[31m   ΓåÆ Failed to load url node-fetch (resolved id: node-fetch) in K:/agentvendi/server/lib/audit.js. Does the file exist?[39m
+ [31m├ù[39m tests/runtime.test.js[2m > [22mHallucination Guardrails[2m > [22mshould pass clean outputs through unchanged
+[31m   ΓåÆ Failed to load url node-fetch (resolved id: node-fetch) in K:/agentvendi/server/lib/audit.js. Does the file exist?[39m
+ [31m├ù[39m tests/runtime.test.js[2m > [22mLLM Provider Support[2m > [22mshould throw on unknown provider
+[31m   ΓåÆ Failed to load url node-fetch (resolved id: node-fetch) in K:/agentvendi/server/lib/audit.js. Does the file exist?[39m
+
+node.exe : [31mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[1m[7m Failed Tests 8 
+[27m[22mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[39m
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\Santosh\AppData\Roamin ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([31mΓÄ»ΓÄ»ΓÄ»Γ...»ΓÄ»ΓÄ»ΓÄ»[39m:String)  
+   [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+[31m[1m[7m FAIL [27m[22m[39m tests/runtime.test.js[2m > [22mTool Registry[2m > 
+[22mshould have all required tools registered
+[31m[1m[7m FAIL [27m[22m[39m tests/runtime.test.js[2m > [22mTool Registry[2m > 
+[22mshould parse JSON block tool calls
+[31m[1m[7m FAIL [27m[22m[39m tests/runtime.test.js[2m > [22mTool Registry[2m > 
+[22mshould return null for messages without tool calls
+[31m[1m[7m FAIL [27m[22m[39m tests/runtime.test.js[2m > [22mInfinite Loop 
+Detection[2m > [22mshould detect repeated identical tool calls
+[31m[1m[7m FAIL [27m[22m[39m tests/runtime.test.js[2m > [22mInfinite Loop 
+Detection[2m > [22mshould NOT flag different tool calls as loops
+[31m[1m[7m FAIL [27m[22m[39m tests/runtime.test.js[2m > [22mHallucination 
+Guardrails[2m > [22mshould flag stale knowledge disclaimers
+[31m[1m[7m FAIL [27m[22m[39m tests/runtime.test.js[2m > [22mHallucination 
+Guardrails[2m > [22mshould pass clean outputs through unchanged
+[31m[1m[7m FAIL [27m[22m[39m tests/runtime.test.js[2m > [22mLLM Provider 
+Support[2m > [22mshould throw on unknown provider
+[31m[1mError[22m: Failed to load url node-fetch (resolved id: node-fetch) in 
+K:/agentvendi/server/lib/audit.js. Does the file exist?[39m
+[90m [2mΓ¥»[22m loadAndTransform node_modules/vitest/node_modules/vite/dist/node/chun
+ks/dep-BK3b2jBa.js:[2m51969:17[22m[39m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[1/8]ΓÄ
+»[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m8 failed[39m[22m[90m (8)[39m
+[2m   Start at [22m 17:54:39
+[2m   Duration [22m 1.19s[2m (transform 163ms, setup 0ms, collect 57ms, tests 537ms, environment 1ms, prepare 113ms)[22m
+

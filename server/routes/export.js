@@ -3,16 +3,19 @@
 // ============================================================
 
 import { Router } from 'express';
-import { getDB } from '../db.js';
+import { getDB, query, querySingle } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
 
 // Export agent as JSON (the frontend handles ZIP bundling)
-router.get('/:id', authenticateToken, (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const db = getDB();
-    const agent = db.prepare('SELECT * FROM agents WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    const agent = (await querySingle(
+      'SELECT * FROM agents WHERE id = ? AND user_id = ?',
+      [req.params.id, req.user.id]
+    ));
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
     const config = JSON.parse(agent.config || '{}');

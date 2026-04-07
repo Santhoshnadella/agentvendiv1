@@ -1,0 +1,108 @@
+﻿
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mK:/agentvendi[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32mΓ£ô[39m tests/export.test.js [2m([22m[2m3 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32mΓ£ô[39m tests/security.test.js [2m([22m[2m9 tests[22m[2m)[22m[90m 69[2mms[22m[39m
+[90mstdout[2m | tests/db.test.js[2m > [22m[2mDatabase Abstraction Layer[2m > [22m[2mSQLite Adapter[2m > [22m[2mshould initialize sqlite connection and execute queries
+[22m[39m≡ƒôª Database adapter: SQLite (WAL mode, busy_timeout=5s)
+
+[90mstdout[2m | tests/db.test.js[2m > [22m[2mDatabase Abstraction Layer[2m > [22m[2mSQLite Adapter[2m > [22m[2mshould execute transactions correctly
+[22m[39m≡ƒôª Database adapter: SQLite (WAL mode, busy_timeout=5s)
+
+[90mstdout[2m | tests/db.test.js[2m > [22m[2mDatabase Abstraction Layer[2m > [22m[2mPostgreSQL Adapter[2m > [22m[2mshould translate parameters correctly for PostgreSQL
+[22m[39m≡ƒôª Database adapter: PostgreSQL (Pool max: 20)
+
+ [32mΓ£ô[39m tests/db.test.js [2m([22m[2m3 tests[22m[2m)[22m[90m 143[2mms[22m[39m
+ [32mΓ£ô[39m tests/api.test.js [2m([22m[2m2 tests[22m[2m)[22m[90m 39[2mms[22m[39m
+ [32mΓ£ô[39m tests/benchmarks.test.js [2m([22m[2m1 test[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32mΓ£ô[39m tests/runtime.test.js [2m([22m[2m8 tests[22m[2m)[22m[33m 669[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m Tool Registry[2m > [22mshould have all required tools registered [33m659[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m      Tests [22m [1m[32m26 passed[39m[22m[90m (26)[39m
+[2m   Start at [22m 17:45:08
+[2m   Duration [22m 2.56s[2m (transform 427ms, setup 0ms, collect 1.72s, tests 932ms, environment 2ms, prepare 1.32s)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |    9.88 |    34.71 |   23.96 |    9.88 |                   
+ agentvendi        |       0 |        0 |       0 |       0 |                   
+  admin.js         |       0 |        0 |       0 |       0 | 1-430             
+  main.js          |       0 |        0 |       0 |       0 | 1-463             
+  old_db.js        |       0 |        0 |       0 |       0 | 1-282             
+  refactor.js      |       0 |        0 |       0 |       0 | 1-58              
+  transform.js     |       0 |        0 |       0 |       0 | 1-102             
+ agentvendi/assets |       0 |        0 |       0 |       0 |                   
+  ...x-B6hUSIXg.js |       0 |        0 |       0 |       0 | 1-52              
+ agentvendi/export |   49.83 |    38.09 |   41.66 |   49.83 |                   
+  bundler.js       |       0 |        0 |       0 |       0 | 1-132             
+  generator.js     |   75.24 |    39.02 |   45.45 |   75.24 | ...90-192,211-236 
+ agentvendi/lib    |       0 |        0 |       0 |       0 |                   
+  api.js           |       0 |        0 |       0 |       0 | 1-54              
+  parser.js        |       0 |        0 |       0 |       0 | 1-78              
+  state.js         |       0 |        0 |       0 |       0 | 1-99              
+  suggestions.js   |       0 |        0 |       0 |       0 | 1-61              
+  webai.js         |       0 |        0 |       0 |       0 | 1-42              
+ ...tvendi/scripts |       0 |        0 |       0 |       0 |                   
+  migrate.js       |       0 |        0 |       0 |       0 | 1-131             
+  ...mcp-server.js |       0 |        0 |       0 |       0 | 1-45              
+  seed.js          |       0 |        0 |       0 |       0 | 1-39              
+ agentvendi/server |   45.77 |    54.54 |      70 |   45.77 |                   
+  db.js            |    81.5 |    56.25 |   77.77 |    81.5 | ...59-160,169-171 
+  index.js         |       0 |        0 |       0 |       0 | 1-135             
+ ...ndi/server/lib |   44.05 |    45.83 |   34.28 |   44.05 |                   
+  a2aClient.js     |       0 |        0 |       0 |       0 | 1-55              
+  audit.js         |       0 |        0 |       0 |       0 | 1-33              
+  logger.js        |       0 |        0 |       0 |       0 | 1-17              
+  runtime.js       |   55.44 |    47.61 |      40 |   55.44 | ...24-555,585-624 
+  websocket.js     |    18.1 |    66.66 |   28.57 |    18.1 | ...09-115,120-126 
+ ...server/lib/mcp |   13.26 |      100 |   16.66 |   13.26 |                   
+  manager.js       |   13.26 |      100 |   16.66 |   13.26 | ...81-100,103-109 
+ ...er/lib/plugins |       0 |        0 |       0 |       0 |                   
+  manager.js       |       0 |        0 |       0 |       0 | 1-130             
+ ...ver/middleware |   51.66 |    52.63 |      50 |   51.66 |                   
+  auth.js          |       0 |        0 |       0 |       0 | 1-39              
+  security.js      |   60.34 |    55.55 |   57.14 |   60.34 | ...64-177,185-224 
+ .../server/routes |       0 |        0 |       0 |       0 |                   
+  a2a.js           |       0 |        0 |       0 |       0 | 1-106             
+  admin.js         |       0 |        0 |       0 |       0 | 1-223             
+  agents.js        |       0 |        0 |       0 |       0 | 1-215             
+  ai.js            |       0 |        0 |       0 |       0 | 1-114             
+  analytics.js     |       0 |        0 |       0 |       0 | 1-86              
+  auth.js          |       0 |        0 |       0 |       0 | 1-73              
+  billing.js       |       0 |        0 |       0 |       0 | 1-46              
+  config.js        |       0 |        0 |       0 |       0 | 1-26              
+  docs.js          |       0 |        0 |       0 |       0 | 1-60              
+  export.js        |       0 |        0 |       0 |       0 | 1-28              
+  marketplace.js   |       0 |        0 |       0 |       0 | 1-147             
+  mcp.js           |       0 |        0 |       0 |       0 | 1-77              
+  plugins.js       |       0 |        0 |       0 |       0 | 1-28              
+  runtime.js       |       0 |        0 |       0 |       0 | 1-254             
+  teams.js         |       0 |        0 |       0 |       0 | 1-70              
+  vending.js       |       0 |        0 |       0 |       0 | 1-116             
+ agentvendi/tabs   |       0 |        0 |       0 |       0 |                   
+  behavior.js      |       0 |        0 |       0 |       0 | 1-101             
+  cognitive.js     |       0 |        0 |       0 |       0 | 1-274             
+  guardrails.js    |       0 |        0 |       0 |       0 | 1-136             
+  knowledge.js     |       0 |        0 |       0 |       0 | 1-130             
+  role.js          |       0 |        0 |       0 |       0 | 1-82              
+  selection.js     |       0 |        0 |       0 |       0 | 1-224             
+  skills.js        |       0 |        0 |       0 |       0 | 1-143             
+ ...endi/templates |       0 |        0 |       0 |       0 |                   
+  library.js       |       0 |        0 |       0 |       0 | 1-364             
+ agentvendi/views  |       0 |        0 |       0 |       0 |                   
+  analytics.js     |       0 |        0 |       0 |       0 | 1-94              
+  auth.js          |       0 |        0 |       0 |       0 | 1-115             
+  dashboard.js     |       0 |        0 |       0 |       0 | 1-324             
+  evaluator.js     |       0 |        0 |       0 |       0 | 1-109             
+  home.js          |       0 |        0 |       0 |       0 | 1-86              
+  marketplace.js   |       0 |        0 |       0 |       0 | 1-172             
+  masterclass.js   |       0 |        0 |       0 |       0 | 1-106             
+  my-agents.js     |       0 |        0 |       0 |       0 | 1-263             
+  sandbox.js       |       0 |        0 |       0 |       0 | 1-213             
+  teams.js         |       0 |        0 |       0 |       0 | 1-121             
+  version-diff.js  |       0 |        0 |       0 |       0 | 1-64              
+-------------------|---------|----------|---------|---------|-------------------

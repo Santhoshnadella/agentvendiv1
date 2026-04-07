@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentvendi
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: agentvendi
+  template:
+    metadata:
+      labels:
+        app: agentvendi
+    spec:
+      containers:
+      - name: agentvendi
+        image: agentvendi:latest
+        ports:
+        - containerPort: 3001
+        readinessProbe:
+          httpGet:
+            path: /health/db
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health/db
+            port: 3001
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        env:
+        - name: DB_TYPE
+          value: "postgresql"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: agentvendi-secrets
+              key: database-url
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agentvendi
+spec:
+  selector:
+    app: agentvendi
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3001
+  type: ClusterIP

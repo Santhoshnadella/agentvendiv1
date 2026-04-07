@@ -3,14 +3,14 @@
 // ============================================================
 
 import { Router } from 'express';
-import { getDB } from '../db.js';
+import { getDB, query, querySingle } from '../db.js';
 
 const router = Router();
 
-router.get('/enterprise', (req, res) => {
+router.get('/enterprise', async (req, res) => {
   try {
     const db = getDB();
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('enterprise_config');
+    const row = (await querySingle('SELECT value FROM settings WHERE key = ?', ['enterprise_config']));
     const config = row ? JSON.parse(row.value) : {};
     
     // Only return non-sensitive fields to the frontend

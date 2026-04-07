@@ -6,13 +6,13 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuid } from 'uuid';
-import { getDB } from '../db.js';
+import { getDB, query, querySingle } from '../db.js';
 import { authenticateToken, JWT_SECRET } from '../middleware/auth.js';
 
 const router = Router();
 
 // Register
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
     if (!username || !email || !password) {
@@ -23,14 +23,17 @@ router.post('/register', (req, res) => {
     }
 
     const db = getDB();
-    const existing = db.prepare('SELECT id FROM users WHERE email = ? OR username = ?').get(email, username);
+    const existing = (await querySingle('SELECT id FROM users WHERE email = ? OR username = ?', [email, username]));
     if (existing) {
       return res.status(409).json({ error: 'User already exists' });
     }
 
     const id = uuid();
     const password_hash = bcrypt.hashSync(password, 10);
-    db.prepare('INSERT INTO users (id, username, email, password_hash) VALUES (?, ?, ?, ?)').run(id, username, email, password_hash);
+    (await query(
+      'INSERT INTO users (id, username, email, password_hash) VALUES (?, ?, ?, ?)',
+      [id, username, email, password_hash]
+    ));
 
     const token = jwt.sign({ id, username, email }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id, username, email } });
@@ -41,7 +44,7 @@ router.post('/register', (req, res) => {
 });
 
 // Login
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -49,7 +52,7 @@ router.post('/login', (req, res) => {
     }
 
     const db = getDB();
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    const user = (await querySingle('SELECT * FROM users WHERE email = ?', [email]));
     if (!user || !bcrypt.compareSync(password, user.password_hash)) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -63,7 +66,7 @@ router.post('/login', (req, res) => {
 });
 
 // Get current user
-router.get('/me', authenticateToken, (req, res) => {
+router.get('/me', authenticateToken, async (req, res) => {
   res.json({ user: req.user });
 });
 

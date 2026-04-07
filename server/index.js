@@ -10,7 +10,8 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import { auditLogger } from './middleware/security.js';
 
-import { initDB } from './db.js';
+import fs from 'fs';
+import { getDB, initDB, closeSession, querySingle, getDBType } from './db.js';
 import authRoutes from './routes/auth.js';
 import agentRoutes from './routes/agents.js';
 import marketplaceRoutes from './routes/marketplace.js';
@@ -23,6 +24,13 @@ import docsRoutes from './routes/docs.js';
 import configRoutes from './routes/config.js';
 import runtimeRoutes from './routes/runtime.js';
 import vendingRoutes from './routes/vending.js';
+import mcpRoutes from './routes/mcp.js';
+import a2aRoutes from './routes/a2a.js';
+import pluginRoutes from './routes/plugins.js';
+import billingRoutes from './routes/billing.js';
+import { mcpManager } from './lib/mcp/manager.js';
+import { wsManager } from './lib/websocket.js';
+import { pluginManager } from './lib/plugins/manager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -55,26 +63,73 @@ app.use('/api-docs', docsRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/runtime', runtimeRoutes);
 app.use('/api/v1', vendingRoutes);
+app.use('/api/mcp', mcpRoutes);
+app.use('/api/plugins', pluginRoutes);
+app.use('/api/billing', billingRoutes);
+
+app.use('/', a2aRoutes); // Contains /.well-known and /a2a/ methods
+
+app.get('/health/db', async (req, res) => {
+  try {
+    const result = await querySingle('SELECT 1 as ok');
+    if (result && result.ok === 1) {
+      res.json({ status: 'ok', database: getDBType() });
+    } else {
+      res.status(500).json({ status: 'error', message: 'Database query failed' });
+    }
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
 
 // ── Serve frontend in production ──
 const distPath = path.join(__dirname, '..', 'dist');
 const rootPath = path.join(__dirname, '..');
-app.use(express.static(distPath));
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(rootPath, 'admin.html'));
-});
-app.get('*', (req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'));
-});
+
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get('/admin', async (req, res) => {
+    res.sendFile(path.join(rootPath, 'admin.html'));
+  });
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+} else {
+  app.use(express.static(rootPath));
+  app.get('/admin', async (req, res) => {
+    res.sendFile(path.join(rootPath, 'admin.html'));
+  });
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(rootPath, 'index.html'));
+  });
+}
 
 // ── Error handler ──
-app.use((err, req, res, next) => {
+app.use(async (err, req, res, next) => {
   console.error('Server error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });
 
 // ── Start ──
-initDB();
-app.listen(PORT, () => {
+await initDB();
+await mcpManager.init(); // Initialize MCP clients
+pluginManager.init(); // Initialize plugins
+
+const server = app.listen(PORT, () => {
   console.log(`🎰 AgentVendi server running on http://localhost:${PORT}`);
 });
+
+wsManager.init(server); // Initialize WebSocket server
+
+// Graceful shutdown
+const shutdown = async () => {
+  console.log('Shutting down server...');
+  server.close(async () => {
+    await closeSession();
+    console.log('Database connections closed.');
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

@@ -3,28 +3,31 @@
 // ============================================================
 
 import { Router } from 'express';
-import { getDB } from '../db.js';
+import { getDB, query, querySingle } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
 
 // Get user's analytics overview
-router.get('/overview', authenticateToken, (req, res) => {
+router.get('/overview', authenticateToken, async (req, res) => {
   try {
     const db = getDB();
 
-    const totalAgents = db.prepare('SELECT COUNT(*) as count FROM agents WHERE user_id = ?').get(req.user.id).count;
-    const publishedAgents = db.prepare('SELECT COUNT(*) as count FROM agents WHERE user_id = ? AND is_published = 1').get(req.user.id).count;
+    const totalAgents = (await querySingle('SELECT COUNT(*) as count FROM agents WHERE user_id = ?', [req.user.id])).count;
+    const publishedAgents = (await querySingle(
+      'SELECT COUNT(*) as count FROM agents WHERE user_id = ? AND is_published = 1',
+      [req.user.id]
+    )).count;
 
-    const marketplaceStats = db.prepare(`
+    const marketplaceStats = (await querySingle(`
       SELECT 
         COALESCE(SUM(clones), 0) as totalClones,
         COALESCE(ROUND(AVG(CASE WHEN rating_count > 0 THEN rating_sum / rating_count END), 1), 0) as avgRating,
         COALESCE(SUM(rating_count), 0) as totalRatings
       FROM marketplace WHERE user_id = ?
-    `).get(req.user.id);
+    `, [req.user.id]));
 
-    const topAgents = db.prepare(`
+    const topAgents = (await query(`
       SELECT m.name, m.clones, 
         CASE WHEN m.rating_count > 0 THEN ROUND(m.rating_sum / m.rating_count, 1) ELSE 0 END as rating,
         m.rating_count, m.created_at
@@ -32,15 +35,15 @@ router.get('/overview', authenticateToken, (req, res) => {
       WHERE m.user_id = ?
       ORDER BY m.clones DESC
       LIMIT 10
-    `).all(req.user.id);
+    `, [req.user.id]));
 
-    const recentActivity = db.prepare(`
+    const recentActivity = (await query(`
       SELECT name, version, updated_at 
       FROM agents 
       WHERE user_id = ?
       ORDER BY updated_at DESC
       LIMIT 10
-    `).all(req.user.id);
+    `, [req.user.id]));
 
     res.json({
       totalAgents,
@@ -58,21 +61,21 @@ router.get('/overview', authenticateToken, (req, res) => {
 });
 
 // Get marketplace-wide trending stats
-router.get('/trending', (req, res) => {
+router.get('/trending', async (req, res) => {
   try {
     const db = getDB();
 
-    const trending = db.prepare(`
+    const trending = (await query(`
       SELECT m.name, m.clones, u.username as author,
         CASE WHEN m.rating_count > 0 THEN ROUND(m.rating_sum / m.rating_count, 1) ELSE 0 END as rating
       FROM marketplace m
       JOIN users u ON m.user_id = u.id
       ORDER BY m.clones DESC
       LIMIT 10
-    `).all();
+    `, []));
 
-    const totalAgents = db.prepare('SELECT COUNT(*) as count FROM marketplace').get().count;
-    const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+    const totalAgents = (await querySingle('SELECT COUNT(*) as count FROM marketplace', [])).count;
+    const totalUsers = (await querySingle('SELECT COUNT(*) as count FROM users', [])).count;
 
     res.json({ trending, totalAgents, totalUsers });
   } catch (err) {

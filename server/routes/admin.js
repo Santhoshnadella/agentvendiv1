@@ -3,15 +3,15 @@
 // ============================================================
 
 import { Router } from 'express';
-import { getDB } from '../db.js';
+import { getDB, query, querySingle } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
 
 // Admin middleware
-function requireAdmin(req, res, next) {
+async function requireAdmin(req, res, next) {
   const db = getDB();
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.user.id);
+  const user = (await querySingle('SELECT role FROM users WHERE id = ?', [req.user.id]));
   if (!user || user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -19,25 +19,25 @@ function requireAdmin(req, res, next) {
 }
 
 // Platform stats
-router.get('/stats', authenticateToken, requireAdmin, (req, res) => {
+router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const db = getDB();
-    const totalUsers = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
-    const totalAgents = db.prepare('SELECT COUNT(*) as c FROM agents').get().c;
-    const marketplaceListings = db.prepare('SELECT COUNT(*) as c FROM marketplace').get().c;
-    const totalClones = db.prepare('SELECT COALESCE(SUM(clones),0) as c FROM marketplace').get().c;
-    const totalTeams = db.prepare('SELECT COUNT(*) as c FROM teams').get().c;
-    const pendingModeration = db.prepare("SELECT COUNT(*) as c FROM marketplace WHERE status = 'pending'").get().c;
+    const totalUsers = (await querySingle('SELECT COUNT(*) as c FROM users', [])).c;
+    const totalAgents = (await querySingle('SELECT COUNT(*) as c FROM agents', [])).c;
+    const marketplaceListings = (await querySingle('SELECT COUNT(*) as c FROM marketplace', [])).c;
+    const totalClones = (await querySingle('SELECT COALESCE(SUM(clones),0) as c FROM marketplace', [])).c;
+    const totalTeams = (await querySingle('SELECT COUNT(*) as c FROM teams', [])).c;
+    const pendingModeration = (await querySingle("SELECT COUNT(*) as c FROM marketplace WHERE status = 'pending'", [])).c;
 
-    const topAgents = db.prepare(`
+    const topAgents = (await query(`
       SELECT m.name, m.clones FROM marketplace m ORDER BY m.clones DESC LIMIT 8
-    `).all();
+    `, []));
 
-    const recentActivity = db.prepare(`
+    const recentActivity = (await query(`
       SELECT al.*, u.username FROM activity_log al 
       LEFT JOIN users u ON al.user_id = u.id 
       ORDER BY al.created_at DESC LIMIT 10
-    `).all();
+    `, []));
 
     res.json({ stats: { totalUsers, totalAgents, marketplaceListings, totalClones, totalTeams, pendingModeration }, topAgents, recentActivity });
   } catch (err) {
@@ -47,14 +47,14 @@ router.get('/stats', authenticateToken, requireAdmin, (req, res) => {
 });
 
 // List users
-router.get('/users', authenticateToken, requireAdmin, (req, res) => {
+router.get('/users', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const db = getDB();
-    const users = db.prepare(`
+    const users = (await query(`
       SELECT u.id, u.username, u.email, u.role, u.status, u.created_at,
         (SELECT COUNT(*) FROM agents WHERE user_id = u.id) as agentCount
       FROM users u ORDER BY u.created_at DESC
-    `).all();
+    `, []));
     res.json({ users });
   } catch (err) {
     res.status(500).json({ error: 'Failed to list users' });
@@ -62,10 +62,10 @@ router.get('/users', authenticateToken, requireAdmin, (req, res) => {
 });
 
 // Promote user to admin
-router.post('/users/:id/promote', authenticateToken, requireAdmin, (req, res) => {
+router.post('/users/:id/promote', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const db = getDB();
-    db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(req.params.id);
+    (await query("UPDATE users SET role = 'admin' WHERE id = ?", [req.params.id]));
     logActivity(db, req.user.id, 'promoted user', req.params.id);
     res.json({ message: 'User promoted to admin' });
   } catch (err) {
@@ -74,12 +74,12 @@ router.post('/users/:id/promote', authenticateToken, requireAdmin, (req, res) =>
 });
 
 // Ban/unban user
-router.post('/users/:id/ban', authenticateToken, requireAdmin, (req, res) => {
+router.post('/users/:id/ban', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const db = getDB();
-    const user = db.prepare('SELECT status FROM users WHERE id = ?').get(req.params.id);
+    const user = (await querySingle('SELECT status FROM users WHERE id = ?', [req.params.id]));
     const newStatus = user?.status === 'banned' ? 'active' : 'banned';
-    db.prepare("UPDATE users SET status = ? WHERE id = ?").run(newStatus, req.params.id);
+    (await query("UPDATE users SET status = ? WHERE id = ?", [newStatus, req.params.id]));
     logActivity(db, req.user.id, `${newStatus === 'banned' ? 'banned' : 'unbanned'} user`, req.params.id);
     res.json({ message: `User ${newStatus}` });
   } catch (err) {
@@ -88,14 +88,14 @@ router.post('/users/:id/ban', authenticateToken, requireAdmin, (req, res) => {
 });
 
 // List all agents
-router.get('/agents', authenticateToken, requireAdmin, (req, res) => {
+router.get('/agents', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const db = getDB();
-    const agents = db.prepare(`
+    const agents = (await query(`
       SELECT a.*, u.username FROM agents a 
       LEFT JOIN users u ON a.user_id = u.id 
       ORDER BY a.created_at DESC
-    `).all();
+    `, []));
     res.json({ agents });
   } catch (err) {
     res.status(500).json({ error: 'Failed to list agents' });
@@ -103,14 +103,14 @@ router.get('/agents', authenticateToken, requireAdmin, (req, res) => {
 });
 
 // Marketplace admin
-router.get('/marketplace', authenticateToken, requireAdmin, (req, res) => {
+router.get('/marketplace', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const db = getDB();
-    const listings = db.prepare(`
+    const listings = (await query(`
       SELECT m.*, u.username as author FROM marketplace m
       LEFT JOIN users u ON m.user_id = u.id
       ORDER BY m.created_at DESC
-    `).all();
+    `, []));
     res.json({ listings });
   } catch (err) {
     res.status(500).json({ error: 'Failed to list marketplace' });
@@ -118,10 +118,10 @@ router.get('/marketplace', authenticateToken, requireAdmin, (req, res) => {
 });
 
 // Remove marketplace listing
-router.post('/marketplace/:id/remove', authenticateToken, requireAdmin, (req, res) => {
+router.post('/marketplace/:id/remove', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const db = getDB();
-    db.prepare('DELETE FROM marketplace WHERE id = ?').run(req.params.id);
+    (await query('DELETE FROM marketplace WHERE id = ?', [req.params.id]));
     logActivity(db, req.user.id, 'removed listing', req.params.id);
     res.json({ message: 'Listing removed' });
   } catch (err) {
@@ -130,15 +130,15 @@ router.post('/marketplace/:id/remove', authenticateToken, requireAdmin, (req, re
 });
 
 // Moderation queue
-router.get('/moderation', authenticateToken, requireAdmin, (req, res) => {
+router.get('/moderation', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const db = getDB();
-    const pending = db.prepare(`
+    const pending = (await query(`
       SELECT m.*, u.username FROM marketplace m
       LEFT JOIN users u ON m.user_id = u.id
       WHERE m.status = 'pending'
       ORDER BY m.created_at ASC
-    `).all();
+    `, []));
     res.json({ pending });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch moderation queue' });
@@ -146,10 +146,10 @@ router.get('/moderation', authenticateToken, requireAdmin, (req, res) => {
 });
 
 // Approve agent
-router.post('/agents/:id/approve', authenticateToken, requireAdmin, (req, res) => {
+router.post('/agents/:id/approve', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const db = getDB();
-    db.prepare("UPDATE marketplace SET status = 'approved' WHERE id = ?").run(req.params.id);
+    (await query("UPDATE marketplace SET status = 'approved' WHERE id = ?", [req.params.id]));
     logActivity(db, req.user.id, 'approved agent', req.params.id);
     res.json({ message: 'Agent approved' });
   } catch (err) {
@@ -158,10 +158,10 @@ router.post('/agents/:id/approve', authenticateToken, requireAdmin, (req, res) =
 });
 
 // Reject agent
-router.post('/agents/:id/reject', authenticateToken, requireAdmin, (req, res) => {
+router.post('/agents/:id/reject', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const db = getDB();
-    db.prepare("UPDATE marketplace SET status = 'rejected' WHERE id = ?").run(req.params.id);
+    (await query("UPDATE marketplace SET status = 'rejected' WHERE id = ?", [req.params.id]));
     logActivity(db, req.user.id, 'rejected agent', req.params.id);
     res.json({ message: 'Agent rejected' });
   } catch (err) {
@@ -170,14 +170,14 @@ router.post('/agents/:id/reject', authenticateToken, requireAdmin, (req, res) =>
 });
 
 // Activity log
-router.get('/activity', authenticateToken, requireAdmin, (req, res) => {
+router.get('/activity', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const db = getDB();
-    const logs = db.prepare(`
+    const logs = (await query(`
       SELECT al.*, u.username FROM activity_log al
       LEFT JOIN users u ON al.user_id = u.id
       ORDER BY al.created_at DESC LIMIT 100
-    `).all();
+    `, []));
     res.json({ logs });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch activity' });
@@ -185,10 +185,10 @@ router.get('/activity', authenticateToken, requireAdmin, (req, res) => {
 });
 
 // Enterprise settings
-router.get('/enterprise', authenticateToken, requireAdmin, (req, res) => {
+router.get('/enterprise', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const db = getDB();
-    const configRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('enterprise_config');
+    const configRow = (await querySingle('SELECT value FROM settings WHERE key = ?', ['enterprise_config']));
     const config = configRow ? JSON.parse(configRow.value) : {};
     res.json({ config });
   } catch (err) {
@@ -196,11 +196,14 @@ router.get('/enterprise', authenticateToken, requireAdmin, (req, res) => {
   }
 });
 
-router.post('/enterprise', authenticateToken, requireAdmin, (req, res) => {
+router.post('/enterprise', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const db = getDB();
     const { config } = req.body;
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('enterprise_config', JSON.stringify(config));
+    (await query(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+      ['enterprise_config', JSON.stringify(config)]
+    ));
     logActivity(db, req.user.id, 'updated enterprise config', 'system');
     res.json({ message: 'Enterprise config updated' });
   } catch (err) {
@@ -208,9 +211,12 @@ router.post('/enterprise', authenticateToken, requireAdmin, (req, res) => {
   }
 });
 
-function logActivity(db, userId, action, target) {
+async function logActivity(db, userId, action, target) {
   try {
-    db.prepare('INSERT INTO activity_log (user_id, action, target, created_at) VALUES (?, ?, ?, datetime("now"))').run(userId, action, target || '');
+    (await query(
+      'INSERT INTO activity_log (user_id, action, target, created_at) VALUES (?, ?, ?, datetime("now"))',
+      [userId, action, target || '']
+    ));
   } catch (e) {}
 }
 

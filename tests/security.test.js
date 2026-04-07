@@ -6,14 +6,20 @@ import { describe, it, expect, vi } from 'vitest';
 
 // Mock DB
 vi.mock('../server/db.js', () => ({
-  getDB: () => ({
-    prepare: vi.fn(() => ({
+  getDB: vi.fn().mockReturnValue({
+    prepare: vi.fn().mockReturnValue({
       run: vi.fn(),
       get: vi.fn(),
-      all: vi.fn(() => []),
-    })),
+      all: vi.fn().mockReturnValue([])
+    })
   }),
+  query: vi.fn().mockResolvedValue([]),
+  querySingle: vi.fn().mockResolvedValue(null),
+  initDB: vi.fn().mockResolvedValue({}),
+  getDBType: vi.fn().mockReturnValue('sqlite')
 }));
+
+import { beforeAll } from 'vitest';
 
 describe('Prompt Injection Guardrails', () => {
   let protectPrompt;

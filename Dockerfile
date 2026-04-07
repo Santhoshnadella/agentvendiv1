@@ -1,13 +1,19 @@
-FROM node:20-alpine
+FROM node:20-alpine AS build
 
 WORKDIR /app
-
 COPY package*.json ./
-RUN npm ci --production
-
+RUN npm install
 COPY . .
 RUN npm run build
 
-EXPOSE 3001
+FROM node:20-alpine AS production
 
-CMD ["node", "server/index.js"]
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --production
+COPY --from=build /app/dist ./dist
+COPY server ./server
+COPY scripts ./scripts
+COPY migrations ./migrations
+
+CMD ["npm", "start"]

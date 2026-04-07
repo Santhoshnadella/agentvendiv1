@@ -8,7 +8,7 @@
 
 import { Router } from 'express';
 import { AgentRuntime } from '../lib/runtime.js';
-import { getDB } from '../db.js';
+import { getDB, query, querySingle } from '../db.js';
 import { authenticateApiKey, generateApiKey, protectPrompt } from '../middleware/security.js';
 import { authenticateToken } from '../middleware/auth.js';
 import crypto from 'crypto';
@@ -52,7 +52,7 @@ router.post('/execute/:agentId', authenticateApiKey, protectPrompt, async (req, 
 });
 
 // ── Generate API Key ───────────────────────────────────────
-router.post('/keys', authenticateToken, (req, res) => {
+router.post('/keys', authenticateToken, async (req, res) => {
   const { name, expiresInDays } = req.body;
 
   try {
@@ -64,10 +64,10 @@ router.post('/keys', authenticateToken, (req, res) => {
       : null;
 
     const id = crypto.randomUUID();
-    db.prepare(`
+    (await query(`
       INSERT INTO api_keys (id, user_id, key_hash, key_prefix, name, expires_at)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, req.user.id, hash, prefix, name || 'Unnamed Key', expiresAt);
+    `, [id, req.user.id, hash, prefix, name || 'Unnamed Key', expiresAt]));
 
     // IMPORTANT: The raw key is only returned ONCE. It's never stored.
     res.json({
@@ -82,12 +82,13 @@ router.post('/keys', authenticateToken, (req, res) => {
 });
 
 // ── List API Keys ──────────────────────────────────────────
-router.get('/keys', authenticateToken, (req, res) => {
+router.get('/keys', authenticateToken, async (req, res) => {
   const db = getDB();
   try {
-    const keys = db.prepare(
-      'SELECT id, key_prefix, name, is_active, last_used_at, expires_at, created_at FROM api_keys WHERE user_id = ? ORDER BY created_at DESC'
-    ).all(req.user.id);
+    const keys = (await query(
+      'SELECT id, key_prefix, name, is_active, last_used_at, expires_at, created_at FROM api_keys WHERE user_id = ? ORDER BY created_at DESC',
+      [req.user.id]
+    ));
     res.json({ keys });
   } catch (err) {
     res.status(500).json({ error: 'Failed to list keys' });
@@ -95,12 +96,13 @@ router.get('/keys', authenticateToken, (req, res) => {
 });
 
 // ── Revoke API Key ─────────────────────────────────────────
-router.delete('/keys/:id', authenticateToken, (req, res) => {
+router.delete('/keys/:id', authenticateToken, async (req, res) => {
   const db = getDB();
   try {
-    const result = db.prepare(
-      'UPDATE api_keys SET is_active = 0 WHERE id = ? AND user_id = ?'
-    ).run(req.params.id, req.user.id);
+    const result = (await query(
+      'UPDATE api_keys SET is_active = 0 WHERE id = ? AND user_id = ?',
+      [req.params.id, req.user.id]
+    ));
 
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Key not found' });

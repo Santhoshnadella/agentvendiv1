@@ -1,8 +1,5 @@
-// ============================================================
-// AI Routes — Ollama-powered Cognitive Chat
-// ============================================================
-
-import { getDB } from '../db.js';
+import { Router } from 'express';
+import { getDB, query, querySingle } from '../db.js';
 
 const router = Router();
 
@@ -11,7 +8,7 @@ const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
 
 async function getEnterpriseConfig() {
   const db = getDB();
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('enterprise_config');
+  const row = (await querySingle('SELECT value FROM settings WHERE key = ?', ['enterprise_config']));
   return row ? JSON.parse(row.value) : {};
 }
 

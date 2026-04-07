@@ -18,7 +18,7 @@ export const API_DOCS = [
   { method: 'GET', path: '/health', desc: 'System health check and database status' },
 ];
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const html = `
     <!DOCTYPE html>
     <html>
@@ -47,7 +47,7 @@ router.get('/', (req, res) => {
   res.send(html);
 });
 
-router.get('/health', (req, res) => {
+router.get('/health', async (req, res) => {
   res.json({
     status: 'online',
     version: '1.0.0-PRO',

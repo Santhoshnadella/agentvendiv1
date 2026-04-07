@@ -9,7 +9,7 @@
 //   4. API Key Auth        — For Vending Machine API consumers
 //
 
-import { getDB } from '../db.js';
+import { getDB, query, querySingle } from '../db.js';
 import crypto from 'crypto';
 
 // ── Layer 1: Audit Logger ──────────────────────────────────
@@ -19,13 +19,13 @@ export function auditLogger(req, res, next) {
   const userId = req.user?.id || 'anonymous';
   const action = `${req.method} ${req.originalUrl}`;
 
-  res.on('finish', () => {
+  res.on('finish', async () => {
     try {
       const duration = Date.now() - startTime;
-      db.prepare(`
+      (await query(`
         INSERT INTO activity_log (user_id, action, target)
         VALUES (?, ?, ?)
-      `).run(userId, `${action} [${duration}ms]`, res.statusCode.toString());
+      `, [userId, `${action} [${duration}ms]`, res.statusCode.toString()]));
     } catch (e) {
       // Non-blocking — audit failure should never crash the app
     }
@@ -141,17 +141,17 @@ export function protectPrompt(req, res, next) {
   next();
 }
 
-function logInjectionAttempt(req, content, tier) {
+async function logInjectionAttempt(req, content, tier) {
   try {
     const db = getDB();
-    db.prepare(`
+    (await query(`
       INSERT INTO activity_log (user_id, action, target)
       VALUES (?, ?, ?)
-    `).run(
+    `, [
       req.user?.id || 'anonymous',
       `SECURITY:INJECTION_BLOCKED:${tier}`,
       content.substring(0, 200)
-    );
+    ]));
   } catch (e) { /* non-blocking */ }
 }
 
@@ -181,7 +181,7 @@ export function requireRole(...roles) {
 // For external consumers calling the Vending Machine API.
 // Keys are hashed with SHA-256 before storage (never stored plaintext).
 //
-export function authenticateApiKey(req, res, next) {
+export async function authenticateApiKey(req, res, next) {
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer av_')) {
     return next(); // Fall through to JWT auth
@@ -192,12 +192,12 @@ export function authenticateApiKey(req, res, next) {
 
   try {
     const db = getDB();
-    const row = db.prepare(`
+    const row = (await querySingle(`
       SELECT ak.*, u.id as uid, u.username, u.role
       FROM api_keys ak
       JOIN users u ON ak.user_id = u.id
       WHERE ak.key_hash = ? AND ak.is_active = 1
-    `).get(keyHash);
+    `, [keyHash]));
 
     if (!row) {
       return res.status(401).json({ error: 'Invalid or revoked API key' });
@@ -209,7 +209,10 @@ export function authenticateApiKey(req, res, next) {
     }
 
     // Update last_used_at
-    db.prepare("UPDATE api_keys SET last_used_at = datetime('now') WHERE id = ?").run(row.id);
+    (await query(
+      "UPDATE api_keys SET last_used_at = datetime('now') WHERE id = ?",
+      [row.id]
+    ));
 
     // Attach user context
     req.user = { id: row.uid, username: row.username, role: row.role };

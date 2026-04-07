@@ -1,281 +1,173 @@
 // ============================================================
-// Database Adapter — Supports SQLite (dev) and PostgreSQL (production)
+// Database Adapter — Dual Support for PostgreSQL and SQLite
 // ============================================================
-//
-// ARCHITECTURE DECISION: We use better-sqlite3 for local/dev/intranet use
-// and provide a Knex.js adapter for PostgreSQL/MySQL in production.
-// The DB_ADAPTER env var controls which backend is used.
-//
-// Usage:
-//   DB_ADAPTER=sqlite  (default, zero-config)
-//   DB_ADAPTER=pg      DATABASE_URL=postgres://...
-//
 
 import Database from 'better-sqlite3';
+import pg from 'pg';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import 'dotenv/config';
 
+const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, '..', 'data', 'agentvendi.db');
-const DB_ADAPTER = process.env.DB_ADAPTER || 'sqlite';
+const DB_PATH = process.env.SQLITE_DB_PATH || path.join(__dirname, '..', 'data', 'agentvendi.db');
+const DB_TYPE = process.env.DB_TYPE || 'sqlite'; // 'postgresql' or 'sqlite'
 
-let db;
+let sqliteDb = null;
+let pgPool = null;
 
-/**
- * Returns the raw db instance. For SQLite this is the better-sqlite3 handle.
- * All queries use the synchronous API which is safe because WAL mode
- * allows concurrent reads. For true multi-process production use,
- * switch DB_ADAPTER to 'pg' and use the async query() method.
- */
 export function getDB() {
-  return db;
+    return DB_TYPE === 'postgresql' ? pgPool : sqliteDb;
 }
 
-/**
- * Async-safe query wrapper for production migration path.
- * When using SQLite, wraps synchronous calls. When using Postgres,
- * uses the native async driver.
- */
-export async function query(sql, params = []) {
-  if (DB_ADAPTER === 'sqlite') {
-    return db.prepare(sql).all(...params);
-  }
-  // PostgreSQL path — requires `pg` package
-  // const { rows } = await db.query(sql, params);
-  // return rows;
-  throw new Error('PostgreSQL adapter not yet configured. Install pg and set DATABASE_URL.');
-}
-
-export function initDB() {
-  const dataDir = path.join(__dirname, '..', 'data');
-  fs.mkdirSync(dataDir, { recursive: true });
-
-  if (DB_ADAPTER === 'sqlite') {
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');    // Enables concurrent reads
-    db.pragma('busy_timeout = 5000');   // Wait up to 5s for locks instead of failing
-    db.pragma('synchronous = NORMAL');  // Balanced durability vs speed
-
-    console.log(`📦 Database adapter: SQLite (WAL mode, busy_timeout=5s)`);
+// Ensure singleton connection
+export async function initDB() {
+  if (DB_TYPE === 'postgresql') {
+    if (!pgPool) {
+      if (!process.env.DATABASE_URL) {
+         throw new Error("DATABASE_URL must be set when DB_TYPE=postgresql");
+      }
+      pgPool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        max: 20, // Max 20 connections
+        idleTimeoutMillis: 30000, 
+      });
+      console.log(`📦 Database adapter: PostgreSQL (Pool max: 20)`);
+    }
+    return pgPool;
   } else {
-    // PostgreSQL placeholder — uncomment when pg is installed
-    // import pg from 'pg';
-    // db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    console.log(`📦 Database adapter: ${DB_ADAPTER} (async mode)`);
+    if (!sqliteDb) {
+      const dataDir = path.dirname(DB_PATH);
+      if (!fs.existsSync(dataDir)) {
+          fs.mkdirSync(dataDir, { recursive: true });
+      }
+      sqliteDb = new Database(DB_PATH);
+      sqliteDb.pragma('journal_mode = WAL');
+      sqliteDb.pragma('busy_timeout = 5000');
+      sqliteDb.pragma('synchronous = NORMAL');
+      console.log(`📦 Database adapter: SQLite (WAL mode, busy_timeout=5s)`);
+    }
+    return sqliteDb;
   }
+}
 
-  runMigrations();
-  console.log('✅ Database initialized');
-  return db;
+export function getDBType() {
+    return DB_TYPE;
 }
 
 /**
- * Migration system. Each migration runs exactly once.
- * This replaces raw CREATE TABLE IF NOT EXISTS with a versioned approach.
+ * Graceful shutdown
  */
-function runMigrations() {
-  // Ensure migrations tracking table exists
-  db.exec(`CREATE TABLE IF NOT EXISTS _migrations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL,
-    applied_at TEXT DEFAULT (datetime('now'))
-  )`);
+export async function closeSession() {
+  if (pgPool) {
+    await pgPool.end();
+    pgPool = null;
+  }
+  if (sqliteDb) {
+    sqliteDb.close();
+    sqliteDb = null;
+  }
+}
 
-  const applied = new Set(
-    db.prepare('SELECT name FROM _migrations').all().map(r => r.name)
-  );
-
-  const migrations = [
-    {
-      name: '001_initial_schema',
-      sql: `
-        CREATE TABLE IF NOT EXISTS users (
-          id TEXT PRIMARY KEY,
-          username TEXT UNIQUE NOT NULL,
-          email TEXT UNIQUE NOT NULL,
-          password_hash TEXT NOT NULL,
-          role TEXT DEFAULT 'user',
-          status TEXT DEFAULT 'active',
-          created_at TEXT DEFAULT (datetime('now')),
-          updated_at TEXT DEFAULT (datetime('now'))
-        );
-
-        CREATE TABLE IF NOT EXISTS agents (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          name TEXT NOT NULL,
-          config TEXT NOT NULL,
-          version INTEGER DEFAULT 1,
-          is_published INTEGER DEFAULT 0,
-          created_at TEXT DEFAULT (datetime('now')),
-          updated_at TEXT DEFAULT (datetime('now')),
-          FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS agent_versions (
-          id TEXT PRIMARY KEY,
-          agent_id TEXT NOT NULL,
-          version INTEGER NOT NULL,
-          config TEXT NOT NULL,
-          created_at TEXT DEFAULT (datetime('now')),
-          FOREIGN KEY (agent_id) REFERENCES agents(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS marketplace (
-          id TEXT PRIMARY KEY,
-          agent_id TEXT NOT NULL,
-          user_id TEXT NOT NULL,
-          name TEXT NOT NULL,
-          description TEXT,
-          tags TEXT,
-          config TEXT NOT NULL,
-          clones INTEGER DEFAULT 0,
-          rating_sum REAL DEFAULT 0,
-          rating_count INTEGER DEFAULT 0,
-          status TEXT DEFAULT 'approved',
-          created_at TEXT DEFAULT (datetime('now')),
-          FOREIGN KEY (agent_id) REFERENCES agents(id),
-          FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS ratings (
-          id TEXT PRIMARY KEY,
-          marketplace_id TEXT NOT NULL,
-          user_id TEXT NOT NULL,
-          rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-          created_at TEXT DEFAULT (datetime('now')),
-          FOREIGN KEY (marketplace_id) REFERENCES marketplace(id),
-          FOREIGN KEY (user_id) REFERENCES users(id),
-          UNIQUE(marketplace_id, user_id)
-        );
-
-        CREATE TABLE IF NOT EXISTS teams (
-          id TEXT PRIMARY KEY,
-          name TEXT NOT NULL,
-          description TEXT,
-          owner_id TEXT NOT NULL,
-          created_at TEXT DEFAULT (datetime('now')),
-          FOREIGN KEY (owner_id) REFERENCES users(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS team_members (
-          team_id TEXT NOT NULL,
-          user_id TEXT NOT NULL,
-          role TEXT DEFAULT 'member',
-          joined_at TEXT DEFAULT (datetime('now')),
-          PRIMARY KEY (team_id, user_id),
-          FOREIGN KEY (team_id) REFERENCES teams(id),
-          FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS activity_log (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id TEXT,
-          action TEXT NOT NULL,
-          target TEXT,
-          created_at TEXT DEFAULT (datetime('now'))
-        );
-
-        CREATE TABLE IF NOT EXISTS settings (
-          key TEXT PRIMARY KEY,
-          value TEXT NOT NULL
-        );
-      `
-    },
-    {
-      name: '002_agent_runs_observability',
-      sql: `
-        CREATE TABLE IF NOT EXISTS agent_runs (
-          id TEXT PRIMARY KEY,
-          agent_id TEXT,
-          user_id TEXT,
-          status TEXT DEFAULT 'running',
-          input TEXT,
-          output TEXT,
-          duration INTEGER DEFAULT 0,
-          cost REAL DEFAULT 0,
-          tokens_used INTEGER DEFAULT 0,
-          error_message TEXT,
-          created_at TEXT DEFAULT (datetime('now')),
-          completed_at TEXT,
-          FOREIGN KEY (agent_id) REFERENCES agents(id),
-          FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS agent_run_logs (
-          id TEXT PRIMARY KEY,
-          run_id TEXT,
-          turn_number INTEGER DEFAULT 0,
-          role TEXT,
-          content TEXT,
-          tool_name TEXT,
-          tool_id TEXT,
-          created_at TEXT DEFAULT (datetime('now')),
-          FOREIGN KEY (run_id) REFERENCES agent_runs(id)
-        );
-      `
-    },
-    {
-      name: '003_hitl_approvals',
-      sql: `
-        CREATE TABLE IF NOT EXISTS approvals (
-          id TEXT PRIMARY KEY,
-          run_id TEXT NOT NULL,
-          agent_id TEXT,
-          tool_name TEXT NOT NULL,
-          parameters TEXT,
-          status TEXT DEFAULT 'pending',
-          resolved_by TEXT,
-          resolved_at TEXT,
-          created_at TEXT DEFAULT (datetime('now')),
-          FOREIGN KEY (run_id) REFERENCES agent_runs(id)
-        );
-      `
-    },
-    {
-      name: '004_api_keys_and_vector_docs',
-      sql: `
-        CREATE TABLE IF NOT EXISTS api_keys (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          key_hash TEXT UNIQUE NOT NULL,
-          key_prefix TEXT NOT NULL,
-          name TEXT,
-          scopes TEXT DEFAULT '["execute"]',
-          is_active INTEGER DEFAULT 1,
-          last_used_at TEXT,
-          expires_at TEXT,
-          created_at TEXT DEFAULT (datetime('now')),
-          FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS vector_docs (
-          id TEXT PRIMARY KEY,
-          agent_id TEXT,
-          content TEXT NOT NULL,
-          embedding BLOB,
-          metadata TEXT,
-          created_at TEXT DEFAULT (datetime('now')),
-          FOREIGN KEY (agent_id) REFERENCES agents(id)
-        );
-      `
-    }
-  ];
-
-  const insertMigration = db.prepare('INSERT INTO _migrations (name) VALUES (?)');
-
-  for (const m of migrations) {
-    if (!applied.has(m.name)) {
-      console.log(`  ↳ Running migration: ${m.name}`);
-      db.exec(m.sql);
-      insertMigration.run(m.name);
+/**
+ * Unified query interface.
+ * Abstract SQLite '?' parameters to PostgreSQL '$1, $2'
+ * and handle return formats.
+ */
+export async function query(sqlText, params = []) {
+  if (DB_TYPE === 'postgresql') {
+    if (!pgPool) await initDB();
+    
+    // Abstract ? -> $1, $2
+    let index = 1;
+    const pgSql = sqlText.replace(/\?/g, () => `$${index++}`);
+    
+    const result = await pgPool.query(pgSql, params);
+    // pg driver returns rows
+    return result.rows;
+  } else {
+    if (!sqliteDb) await initDB();
+    
+    const stmt = sqliteDb.prepare(sqlText);
+    
+    // Determine if it's a mutation or selection
+    const isMutation = /^\s*(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|PRAGMA)/i.test(sqlText);
+    
+    if (isMutation) {
+      const info = stmt.run(...params);
+      return { changes: info.changes, lastInsertRowid: info.lastInsertRowid };
+    } else {
+      return stmt.all(...params);
     }
   }
+}
 
-  // Safe column additions for existing DBs
-  const safeAlter = (sql) => { try { db.exec(sql); } catch (e) {} };
-  safeAlter("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'");
-  safeAlter("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'");
-  safeAlter("ALTER TABLE marketplace ADD COLUMN status TEXT DEFAULT 'approved'");
+export async function querySingle(sqlText, params = []) {
+  if (DB_TYPE === 'postgresql') {
+    if (!pgPool) await initDB();
+    let index = 1;
+    const pgSql = sqlText.replace(/\?/g, () => `$${index++}`);
+    const result = await pgPool.query(pgSql, params);
+    return result.rows[0] || null;
+  } else {
+    if (!sqliteDb) await initDB();
+    const isMutation = /^\s*(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|PRAGMA)/i.test(sqlText);
+    if (isMutation) throw new Error('querySingle cannot be used for mutations');
+    const stmt = sqliteDb.prepare(sqlText);
+    return stmt.get(...params) || null;
+  }
+}
+
+/**
+ * Transaction wrapper
+ * Usage: await withTransaction(async (queryFn) => { await queryFn('INSERT...', []); })
+ */
+export async function withTransaction(callback) {
+  if (DB_TYPE === 'postgresql') {
+    if (!pgPool) await initDB();
+    const client = await pgPool.connect();
+    
+    const pgQueryWrapper = async (sqlText, params = []) => {
+      let index = 1;
+      const pgSql = sqlText.replace(/\?/g, () => `$${index++}`);
+      const result = await client.query(pgSql, params);
+      return result.rows;
+    };
+    
+    try {
+      await client.query('BEGIN');
+      const result = await callback(pgQueryWrapper);
+      await client.query('COMMIT');
+      return result;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } else {
+    if (!sqliteDb) await initDB();
+    
+    const sqliteQueryWrapper = async (sqlText, params = []) => {
+       const isMutation = /^\s*(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)/i.test(sqlText);
+       const stmt = sqliteDb.prepare(sqlText);
+       if(isMutation){
+           const info = stmt.run(...params);
+           return { changes: info.changes, lastInsertRowid: info.lastInsertRowid };
+       } else {
+           return stmt.all(...params);
+       }
+    };
+    
+    try {
+        sqliteDb.prepare('BEGIN').run();
+        const result = await callback(sqliteQueryWrapper);
+        sqliteDb.prepare('COMMIT').run();
+        return result;
+    } catch (e) {
+        sqliteDb.prepare('ROLLBACK').run();
+        throw e;
+    }
+  }
 }

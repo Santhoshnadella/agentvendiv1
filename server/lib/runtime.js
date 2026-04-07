@@ -12,8 +12,13 @@
 //   - HITL approvals with DB-backed state machine
 //
 
-import { getDB } from '../db.js';
+import { getDB, query, querySingle } from '../db.js';
 import { v4 as uuidv4 } from 'uuid';
+import { mcpManager } from './mcp/manager.js';
+import { wsManager, hitlBus } from './websocket.js';
+import { TimeTravelEngine } from './timeTravel.js';
+import { logAudit } from './audit.js';
+import { logger } from './logger.js';
 
 // ── LLM Provider Configuration ─────────────────────────────
 const PROVIDERS = {
@@ -163,7 +168,10 @@ const TOOLS = {
       // Real vector search against vector_docs table
       try {
         const db = getDB();
-        const docs = db.prepare('SELECT content, metadata FROM vector_docs ORDER BY created_at DESC LIMIT 100').all();
+        const docs = (await query(
+          'SELECT content, metadata FROM vector_docs ORDER BY created_at DESC LIMIT 100',
+          []
+        ));
         if (docs.length === 0) return 'No documents in knowledge base.';
 
         // Keyword-based ranking (production: use cosine similarity on embeddings)
@@ -225,7 +233,7 @@ export class AgentRuntime {
   async start(input, config = {}) {
     this.runId = uuidv4();
     this.startTime = Date.now();
-    this.logRunStart(input);
+    await this.logRunStart(input);
 
     const systemPrompt = config.system_prompt || 'You are an AI assistant.';
     const maxTurns = config.maxTurns || 10;
@@ -240,12 +248,33 @@ export class AgentRuntime {
     let status = 'completed';
     let errorMessage = null;
 
+    // Load initial state if this run is forked from a time-travel Debugger
+    if (config.fork_from) {
+       const forkData = await TimeTravelEngine.forkRun(config.fork_run_id, config.fork_from_step, config.edited_context);
+       this.runId = forkData.newRunId;
+       messages = forkData.reconstitutedMessages;
+       await logAudit(this.userId, 'RUN_FORK', 'agent_run', this.runId, { original_run: config.fork_run_id, step: config.fork_from_step });
+    }
+
     while (this.turnNumber < maxTurns) {
       this.turnNumber++;
+      
+      // Save state snapshot AT START OF TURN via TimeTravelEngine
+      await TimeTravelEngine.captureSnapshot(this.runId, this.turnNumber, messages, {
+          totalTokens: this.totalTokens,
+          turn: this.turnNumber
+      });
+
+      // Broadcast step start over WebSocket (already handled in Engine partly, but status update here)
+      wsManager.broadcast(`run:${this.runId}`, 'step_update', {
+          run_id: this.runId,
+          step_number: this.turnNumber,
+          status: 'thinking'
+      });
 
       // Time budget check
       if (Date.now() - this.startTime > maxTimeMs) {
-        this.log('system', `⏱️ Time budget exceeded (${maxTimeMs}ms). Stopping.`);
+        await this.log('system', `⏱️ Time budget exceeded (${maxTimeMs}ms). Stopping.`);
         status = 'timeout';
         errorMessage = 'Execution time budget exceeded';
         break;
@@ -254,7 +283,7 @@ export class AgentRuntime {
       try {
         const response = await this.callLLM(messages, config);
         if (!response || !response.content) {
-          this.log('system', '⚠️ Empty LLM response. Stopping.');
+          await this.log('system', '⚠️ Empty LLM response. Stopping.');
           status = 'error';
           errorMessage = 'Empty response from LLM';
           break;
@@ -266,56 +295,98 @@ export class AgentRuntime {
           // ── Infinite loop detection ──
           const loopDetected = this.detectLoop(toolUse);
           if (loopDetected) {
-            this.log('system', `🔁 Infinite loop detected: Tool [${toolUse.name}] called ${loopDetected} times with same params. Breaking.`);
+            await this.log('system', `🔁 Infinite loop detected: Tool [${toolUse.name}] called ${loopDetected} times with same params. Breaking.`);
             finalOutput = response.content;
             status = 'loop_detected';
             errorMessage = `Loop: ${toolUse.name} repeated ${loopDetected}x`;
             break;
           }
 
-          this.log('assistant', response.content, toolUse.name, toolUse.id);
+          await this.log('assistant', response.content, toolUse.name, toolUse.id);
           messages.push({ role: 'assistant', content: response.content });
+          
+          wsManager.broadcast(`run:${this.runId}`, 'step_update', {
+              run_id: this.runId,
+              step_number: this.turnNumber,
+              status: 'tool_execution',
+              tool_name: toolUse.name
+          });
 
           const tool = TOOLS[toolUse.name];
-          if (tool) {
+          let isMcp = false;
+          let mcpToolInfo = null;
+
+          if (!tool) {
+              mcpToolInfo = await querySingle('SELECT mt.*, ms.name as server_name FROM mcp_tools mt JOIN mcp_servers ms ON mt.server_id = ms.id WHERE mt.name = ?', [toolUse.name]);
+              if (mcpToolInfo) {
+                  isMcp = true;
+                  await logAudit(this.userId, 'MCP_TOOL_DISCOVERED', 'mcp_tool', toolUse.name, { server: mcpToolInfo.server_name });
+              }
+          }
+
+          if (tool || isMcp) {
             // ── HITL gating ──
-            if (tool.requiresApproval) {
-              this.log('system', `🚨 Tool [${toolUse.name}] requires manual approval...`);
+            if ((tool && tool.requiresApproval) || isMcp) { // MCP tools require approval by default for safety
+              await this.log('system', `🚨 Tool [${toolUse.name}] requires manual approval...`);
               const approved = await this.requestHITL(toolUse.name, toolUse.parameters);
               if (!approved) {
-                this.log('system', `❌ Tool [${toolUse.name}] denied by user.`);
+                await this.log('system', `❌ Tool [${toolUse.name}] denied by user.`);
                 messages.push({ role: 'user', content: `Tool [${toolUse.name}] was denied by the operator.` });
                 continue;
               }
-              this.log('system', `✅ Tool [${toolUse.name}] approved.`);
+              await this.log('system', `✅ Tool [${toolUse.name}] approved.`);
             }
 
             // ── Execute with timeout ──
             try {
-              const toolResult = await Promise.race([
-                tool.execute(toolUse.parameters),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Tool timeout')), 30000))
-              ]);
-              this.log('tool', toolResult, toolUse.name, toolUse.id);
+              let toolResult;
+              if (isMcp) {
+                  const mcpResp = await Promise.race([
+                     mcpManager.callTool(mcpToolInfo.server_name, toolUse.name, toolUse.parameters),
+                     new Promise((_, reject) => setTimeout(() => reject(new Error('MCP Tool timeout')), 30000))
+                  ]);
+                  // Flatten mcp response to string
+                  toolResult = typeof mcpResp.content === 'object' ? JSON.stringify(mcpResp.content) : String(mcpResp.content || mcpResp);
+              } else {
+                  toolResult = await Promise.race([
+                    tool.execute(toolUse.parameters),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Tool timeout')), 30000))
+                  ]);
+              }
+              await this.log('tool', toolResult, toolUse.name, toolUse.id);
               messages.push({ role: 'user', content: `Tool [${toolUse.name}] returned:\n${toolResult}` });
+              
+              await logAudit(this.userId, 'TOOL_EXECUTE', isMcp ? 'mcp_tool' : 'local_tool', toolUse.name, { 
+                  run_id: this.runId,
+                  params: toolUse.parameters 
+              });
+
+              // Update state snapshot to reflect tool execution
+              await query(`
+                 UPDATE agent_snapshots 
+                 SET state = json_set(state, '$.action_type', 'tool', '$.tool_name', ?, '$.tool_input', ?, '$.tool_output', ?)
+                 WHERE run_id = ? AND step_number = ?
+              `, [toolUse.name, JSON.stringify(toolUse.parameters), String(toolResult), this.runId, this.turnNumber]);
             } catch (toolErr) {
               const errMsg = `Tool [${toolUse.name}] failed: ${toolErr.message}`;
-              this.log('tool', errMsg, toolUse.name, toolUse.id);
+              await this.log('tool', errMsg, toolUse.name, toolUse.id);
               messages.push({ role: 'user', content: errMsg });
             }
           } else {
-            const error = `Tool [${toolUse.name}] not found. Available: ${Object.keys(TOOLS).join(', ')}`;
-            this.log('tool', error);
+            const mcpTools = await query('SELECT name FROM mcp_tools', []);
+            const allTools = [...Object.keys(TOOLS), ...mcpTools.map(t => t.name)].join(', ');
+            const error = `Tool [${toolUse.name}] not found. Available: ${allTools}`;
+            await this.log('tool', error);
             messages.push({ role: 'user', content: error });
           }
         } else {
           // ── Final output — validate for hallucination markers ──
           finalOutput = this.validateOutput(response.content);
-          this.log('assistant', finalOutput);
+          await this.log('assistant', finalOutput);
           break;
         }
       } catch (error) {
-        this.log('system', `❌ Runtime error: ${error.message}`);
+        await this.log('system', `❌ Runtime error: ${error.message}`);
         status = 'error';
         errorMessage = error.message;
         break;
@@ -328,7 +399,7 @@ export class AgentRuntime {
       finalOutput = 'Agent reached maximum reasoning depth. Consider simplifying the task.';
     }
 
-    this.logRunEnd(finalOutput, status, errorMessage);
+    await this.logRunEnd(finalOutput, status, errorMessage);
     return finalOutput;
   }
 
@@ -413,26 +484,24 @@ export class AgentRuntime {
   validateOutput(content) {
     // Check for known hallucination patterns
     const hallucMarkers = [
-      /as of my (last |knowledge )?cutoff/i,
-      /i don't have access to real-time/i,
-      /i cannot browse the (internet|web)/i,
+      /cutoff/i,
+      /real-time/i,
+      /cannot browse/i,
+      /outdated information/i
     ];
 
     let cleaned = content;
-    for (const marker of hallucMarkers) {
-      if (marker.test(cleaned)) {
+    const hasMarker = hallucMarkers.some(marker => marker.test(content));
+    if (hasMarker) {
         cleaned += '\n\n⚠️ Note: This response may contain outdated information. Verify with current sources.';
-        break;
-      }
     }
-
     return cleaned;
   }
 
   // ── Config ───────────────────────────────────────────────
   async getEnterpriseConfig() {
     try {
-      const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get('enterprise_config');
+      const row = await querySingle('SELECT value FROM settings WHERE key = ?', ['enterprise_config']);
       return row ? JSON.parse(row.value) : {};
     } catch (e) {
       return {};
@@ -440,57 +509,78 @@ export class AgentRuntime {
   }
 
   // ── Logging ──────────────────────────────────────────────
-  logRunStart(input) {
-    this.db.prepare(`
+  async logRunStart(input) {
+    await query(`
       INSERT INTO agent_runs (id, agent_id, user_id, status, input)
       VALUES (?, ?, ?, ?, ?)
-    `).run(this.runId, this.agentId, this.userId, 'running', input);
+    `, [this.runId, this.agentId, this.userId, 'running', input]);
   }
 
-  log(role, content, toolName = null, toolId = null) {
-    this.db.prepare(`
+  async log(role, content, toolName = null, toolId = null) {
+    await query(`
       INSERT INTO agent_run_logs (id, run_id, turn_number, role, content, tool_name, tool_id)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(uuidv4(), this.runId, this.turnNumber, role, content, toolName, toolId);
+    `, [uuidv4(), this.runId, this.turnNumber, role, content, toolName, toolId]);
   }
 
   // ── HITL (Human-in-the-Loop) ─────────────────────────────
   async requestHITL(toolName, parameters) {
     const approvalId = uuidv4();
-    this.db.prepare(`
+    await query(`
       INSERT INTO approvals (id, run_id, agent_id, tool_name, parameters, status)
       VALUES (?, ?, ?, ?, ?, 'pending')
-    `).run(approvalId, this.runId, this.agentId, toolName, JSON.stringify(parameters));
+    `, [approvalId, this.runId, this.agentId, toolName, JSON.stringify(parameters)]);
 
-    // Poll for resolution. In production, use WebSocket push instead.
-    const maxWaitSeconds = 60;
-    for (let i = 0; i < maxWaitSeconds; i++) {
-      const row = this.db.prepare('SELECT status FROM approvals WHERE id = ?').get(approvalId);
-      if (!row) return false;
-      if (row.status === 'approved') return true;
-      if (row.status === 'denied') return false;
-      await new Promise(r => setTimeout(r, 1000));
-    }
+    // Broadcast approval request via WebSocket
+    wsManager.broadcast(`run:${this.runId}`, 'approval_request', {
+        approval_id: approvalId,
+        tool_name: toolName,
+        parameters
+    });
 
-    // Auto-deny on timeout
-    this.db.prepare("UPDATE approvals SET status = 'denied', resolved_at = datetime('now') WHERE id = ?").run(approvalId);
-    return false;
+    return new Promise((resolve) => {
+        // Fallback max wait 60s
+        const timeout = setTimeout(async () => {
+             hitlBus.removeAllListeners(`approval:${approvalId}`);
+             await query("UPDATE approvals SET status = 'denied', resolved_at = datetime('now') WHERE id = ?", [approvalId]);
+             resolve(false);
+        }, 60000);
+
+        hitlBus.once(`approval:${approvalId}`, async (response) => {
+             clearTimeout(timeout);
+             const status = response.action === 'approve' ? 'approved' : 'denied';
+             await query(
+               "UPDATE approvals SET status = ?, resolved_by = ?, resolved_at = datetime('now') WHERE id = ?",
+               [status, response.resolved_by || 'anonymous', approvalId]
+             );
+             resolve(status === 'approved');
+        });
+    });
   }
 
   // ── Run Completion ───────────────────────────────────────
-  logRunEnd(output, status = 'completed', errorMessage = null) {
+  async logRunEnd(output, status = 'completed', errorMessage = null) {
     const duration = Date.now() - this.startTime;
-    const providerConfig = this.getEnterpriseConfig();
+    const providerConfig = await this.getEnterpriseConfig();
     const providerName = providerConfig.provider || 'ollama';
     const costRate = PROVIDERS[providerName]?.costPer1kTokens || 0;
     const cost = (this.totalTokens / 1000) * costRate;
 
-    this.db.prepare(`
+    await query(`
       UPDATE agent_runs
       SET status = ?, output = ?, duration = ?, cost = ?,
           tokens_used = ?, error_message = ?, completed_at = datetime('now')
       WHERE id = ?
-    `).run(status, output, duration, cost, this.totalTokens, errorMessage, this.runId);
+    `, [status, output, duration, cost, this.totalTokens, errorMessage, this.runId]);
+    
+    // Broadcast run completion
+    // The payload handles "run_id, step_number, status..."
+    wsManager.broadcast(`run:${this.runId}`, 'run_completed', {
+        run_id: this.runId,
+        status,
+        duration_ms: duration,
+        final_output_preview: output ? output.substring(0, 500) : ''
+    });
   }
 }
 
@@ -499,17 +589,18 @@ export async function retryFromCheckpoint(runId, logId, editedContent, config = 
   const db = getDB();
 
   // Get the original run
-  const originalRun = db.prepare('SELECT * FROM agent_runs WHERE id = ?').get(runId);
+  const originalRun = (await querySingle('SELECT * FROM agent_runs WHERE id = ?', [runId]));
   if (!originalRun) throw new Error('Run not found');
 
   // Get the target log entry's turn number
-  const targetLog = db.prepare('SELECT * FROM agent_run_logs WHERE id = ?').get(logId);
+  const targetLog = (await querySingle('SELECT * FROM agent_run_logs WHERE id = ?', [logId]));
   if (!targetLog) throw new Error('Log entry not found');
 
   // Get all logs up to (but not including) the target turn
-  const priorLogs = db.prepare(
-    'SELECT * FROM agent_run_logs WHERE run_id = ? AND turn_number < ? ORDER BY turn_number ASC, created_at ASC'
-  ).all(runId, targetLog.turn_number);
+  const priorLogs = (await query(
+    'SELECT * FROM agent_run_logs WHERE run_id = ? AND turn_number < ? ORDER BY turn_number ASC, created_at ASC',
+    [runId, targetLog.turn_number]
+  ));
 
   // Reconstruct message history from prior logs
   const messages = priorLogs.map(log => ({
@@ -532,6 +623,6 @@ export async function retryFromCheckpoint(runId, logId, editedContent, config = 
   // Resume the loop
   let finalOutput = editedContent;
   // The runtime picks up from here with the corrected context
-  newRuntime.logRunEnd(finalOutput, 'time_travel');
+  await newRuntime.logRunEnd(finalOutput, 'time_travel');
   return { newRunId: newRuntime.runId, output: finalOutput };
 }

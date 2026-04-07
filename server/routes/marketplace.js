@@ -4,13 +4,13 @@
 
 import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
-import { getDB } from '../db.js';
+import { getDB, query, querySingle } from '../db.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 
 const router = Router();
 
 // Browse marketplace
-router.get('/', optionalAuth, (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const db = getDB();
     const page = parseInt(req.query.page) || 1;
@@ -22,13 +22,13 @@ router.get('/', optionalAuth, (req, res) => {
     if (sort === 'rating') orderBy = 'CASE WHEN rating_count > 0 THEN rating_sum / rating_count ELSE 0 END DESC';
     if (sort === 'popular') orderBy = 'clones DESC';
 
-    const agents = db.prepare(`
+    const agents = (await query(`
       SELECT m.*, u.username as author
       FROM marketplace m
       JOIN users u ON m.user_id = u.id
       ORDER BY ${orderBy}
       LIMIT ? OFFSET ?
-    `).all(limit, offset);
+    `, [limit, offset]));
 
     const parsed = agents.map(a => ({
       id: a.id,
@@ -50,18 +50,18 @@ router.get('/', optionalAuth, (req, res) => {
 });
 
 // Search marketplace
-router.get('/search', (req, res) => {
+router.get('/search', async (req, res) => {
   try {
     const db = getDB();
     const q = req.query.q || '';
-    const agents = db.prepare(`
+    const agents = (await query(`
       SELECT m.*, u.username as author
       FROM marketplace m
       JOIN users u ON m.user_id = u.id
       WHERE m.name LIKE ? OR m.description LIKE ? OR m.tags LIKE ?
       ORDER BY clones DESC
       LIMIT 50
-    `).all(`%${q}%`, `%${q}%`, `%${q}%`);
+    `, [`%${q}%`, `%${q}%`, `%${q}%`]));
 
     const parsed = agents.map(a => ({
       id: a.id,
@@ -80,15 +80,15 @@ router.get('/search', (req, res) => {
 });
 
 // Get single listing
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const db = getDB();
-    const listing = db.prepare(`
+    const listing = (await querySingle(`
       SELECT m.*, u.username as author
       FROM marketplace m
       JOIN users u ON m.user_id = u.id
       WHERE m.id = ?
-    `).get(req.params.id);
+    `, [req.params.id]));
 
     if (!listing) return res.status(404).json({ error: 'Not found' });
 
@@ -102,7 +102,7 @@ router.get('/:id', (req, res) => {
 });
 
 // Rate an agent
-router.post('/:id/rate', authenticateToken, (req, res) => {
+router.post('/:id/rate', authenticateToken, async (req, res) => {
   try {
     const db = getDB();
     const { rating } = req.body;
@@ -110,19 +110,31 @@ router.post('/:id/rate', authenticateToken, (req, res) => {
       return res.status(400).json({ error: 'Rating must be 1-5' });
     }
 
-    const listing = db.prepare('SELECT * FROM marketplace WHERE id = ?').get(req.params.id);
+    const listing = (await querySingle('SELECT * FROM marketplace WHERE id = ?', [req.params.id]));
     if (!listing) return res.status(404).json({ error: 'Not found' });
 
     // Upsert rating
-    const existing = db.prepare('SELECT * FROM ratings WHERE marketplace_id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    const existing = (await querySingle(
+      'SELECT * FROM ratings WHERE marketplace_id = ? AND user_id = ?',
+      [req.params.id, req.user.id]
+    ));
 
     if (existing) {
       const diff = rating - existing.rating;
-      db.prepare('UPDATE ratings SET rating = ? WHERE id = ?').run(rating, existing.id);
-      db.prepare('UPDATE marketplace SET rating_sum = rating_sum + ? WHERE id = ?').run(diff, req.params.id);
+      (await query('UPDATE ratings SET rating = ? WHERE id = ?', [rating, existing.id]));
+      (await query(
+        'UPDATE marketplace SET rating_sum = rating_sum + ? WHERE id = ?',
+        [diff, req.params.id]
+      ));
     } else {
-      db.prepare('INSERT INTO ratings (id, marketplace_id, user_id, rating) VALUES (?, ?, ?, ?)').run(uuid(), req.params.id, req.user.id, rating);
-      db.prepare('UPDATE marketplace SET rating_sum = rating_sum + ?, rating_count = rating_count + 1 WHERE id = ?').run(rating, req.params.id);
+      (await query(
+        'INSERT INTO ratings (id, marketplace_id, user_id, rating) VALUES (?, ?, ?, ?)',
+        [uuid(), req.params.id, req.user.id, rating]
+      ));
+      (await query(
+        'UPDATE marketplace SET rating_sum = rating_sum + ?, rating_count = rating_count + 1 WHERE id = ?',
+        [rating, req.params.id]
+      ));
     }
 
     res.json({ message: 'Rating saved' });
