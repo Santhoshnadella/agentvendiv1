@@ -19,6 +19,8 @@ import { wsManager, hitlBus } from './websocket.js';
 import { TimeTravelEngine } from './timeTravel.js';
 import { logAudit } from './audit.js';
 import { logger } from './logger.js';
+import pRetry from 'p-retry';
+import { z } from 'zod';
 
 // ── LLM Provider Configuration ─────────────────────────────
 const PROVIDERS = {
@@ -230,6 +232,14 @@ export class AgentRuntime {
     this.startTime = null;
   }
 
+  /**
+   * Starts the agent execution loop.
+   * @param {string} input - The user prompt
+   * @param {Object} config - Execution configuration
+   * @param {string} [config.provider] - LLM provider (openai, anthropic, ollama)
+   * @param {number} [config.maxTurns] - Max turn depth
+   * @returns {Promise<string>} Final agent output
+   */
   async start(input, config = {}) {
     this.runId = uuidv4();
     this.startTime = Date.now();
@@ -403,47 +413,55 @@ export class AgentRuntime {
     return finalOutput;
   }
 
-  // ── LLM Caller (Multi-Provider) ──────────────────────────
+  /**
+   * Calls the LLM with exponential backoff on transient errors.
+   * @private
+   */
   async callLLM(messages, config = {}) {
-    const enterpriseConfig = await this.getEnterpriseConfig();
-    const providerName = config.provider || enterpriseConfig.provider || 'ollama';
-    const provider = PROVIDERS[providerName];
+    return pRetry(async () => {
+      const enterpriseConfig = await this.getEnterpriseConfig();
+      const providerName = config.provider || enterpriseConfig.provider || 'ollama';
+      const provider = PROVIDERS[providerName];
 
-    if (!provider) {
-      throw new Error(`Unknown LLM provider: ${providerName}. Available: ${Object.keys(PROVIDERS).join(', ')}`);
-    }
+      if (!provider) {
+        throw new Error(`Unknown LLM provider: ${providerName}`);
+      }
 
-    const model = config.model || enterpriseConfig.modelName || 'llama3.2';
-    const url = config.providerUrl || enterpriseConfig.ollamaUrl || 'http://localhost:11434';
+      const model = config.model || enterpriseConfig.modelName || 'llama3.2';
+      const url = config.providerUrl || enterpriseConfig.ollamaUrl || 'http://localhost:11434';
 
-    const reqConfig = provider.buildRequest(
-      messages.map(m => ({ role: m.role === 'bot' ? 'assistant' : m.role, content: m.content })),
-      model,
-      url
-    );
+      const reqConfig = provider.buildRequest(
+        messages.map(m => ({ role: m.role === 'bot' ? 'assistant' : m.role, content: m.content })),
+        model,
+        url
+      );
 
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(reqConfig.headers || {}),
-    };
+      const res = await fetch(reqConfig.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(reqConfig.headers || {}) },
+        body: JSON.stringify(reqConfig.body),
+        signal: AbortSignal.timeout(60000),
+      });
 
-    const res = await fetch(reqConfig.url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(reqConfig.body),
-      signal: AbortSignal.timeout(60000), // 60s network timeout
+      if (!res.ok) {
+        const err = await res.text();
+        // Don't retry on 4xx errors (client errors)
+        if (res.status >= 400 && res.status < 500) {
+           const fatal = new Error(`LLM Fatal Error (${res.status}): ${err}`);
+           throw new pRetry.AbortError(fatal);
+        }
+        throw new Error(`LLM Transient Error (${res.status}): ${err}`);
+      }
+
+      const parsed = provider.parseResponse(await res.json());
+      this.totalTokens += parsed.tokens;
+      return { content: parsed.content, tokens: parsed.tokens };
+    }, {
+      retries: 3,
+      onFailedAttempt: error => {
+        console.warn(`LLM Call attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`);
+      }
     });
-
-    if (!res.ok) {
-      const errorBody = await res.text().catch(() => '');
-      throw new Error(`LLM ${provider.name} error (${res.status}): ${errorBody.substring(0, 200)}`);
-    }
-
-    const data = await res.json();
-    const parsed = provider.parseResponse(data);
-
-    this.totalTokens += parsed.tokens;
-    return { content: parsed.content, tokens: parsed.tokens };
   }
 
   // ── Tool Use Parser (Regex + JSON) ───────────────────────

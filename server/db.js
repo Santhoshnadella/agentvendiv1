@@ -10,6 +10,9 @@ import fs from 'fs';
 import 'dotenv/config';
 
 const { Pool } = pg;
+
+/** @typedef {(sql: string, params?: any[]) => Promise<any[]>} QueryFn */
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.SQLITE_DB_PATH || path.join(__dirname, '..', 'data', 'agentvendi.db');
 const DB_TYPE = process.env.DB_TYPE || 'sqlite'; // 'postgresql' or 'sqlite'
@@ -170,4 +173,30 @@ export async function withTransaction(callback) {
         throw e;
     }
   }
+}
+/**
+ * Semantic Vector Search Abstraction (pgvector ready)
+ * @param {string} query - The search query
+ * @param {number} limit - Number of results
+ * @returns {Promise<any[]>}
+ */
+export async function semanticSearch(queryText, limit = 5) {
+    if (DB_TYPE === 'postgresql') {
+        // Assume pgvector is enabled. Use <=> or <=> similarity
+        return await query(`
+            SELECT content, metadata, (embedding <=> (SELECT embedding FROM embeddings WHERE query = ? LIMIT 1)) as distance
+            FROM vector_docs
+            ORDER BY distance ASC
+            LIMIT ?
+        `, [queryText, limit]);
+    } else {
+        // SQLite Fallback (Keyword based ranking)
+        const docs = await query('SELECT * FROM vector_docs LIMIT 100');
+        const queryWords = queryText.toLowerCase().split(/\s+/);
+        return docs.map(doc => {
+            let score = 0;
+            queryWords.forEach(w => { if (doc.content.toLowerCase().includes(w)) score++; });
+            return { ...doc, score };
+        }).filter(d => d.score > 0).sort((a,b) => b.score - a.score).slice(0, limit);
+    }
 }

@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import { logAudit } from './audit.js';
+import { redis } from './redis.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key';
 
@@ -12,7 +13,13 @@ class WebSocketManager {
   }
 
   init(server) {
+    redis.init();
     this.wss = new WebSocketServer({ server, path: '/ws' });
+
+    // Listen for cluster-wide broadcasts
+    redis.subscribe('agentvendi:ws_broadcast', ({ roomId, event, payload }) => {
+        this.broadcastLocal(roomId, event, payload);
+    });
 
     this.wss.on('connection', (ws, req) => {
       // Extract token from query: ?token=...
@@ -119,8 +126,13 @@ class WebSocketManager {
     }
   }
 
-  // Throttle utility per room
+  // Broadcast to entire cluster via Redis
   broadcast(roomId, event, payload) {
+    redis.publish('agentvendi:ws_broadcast', { roomId, event, payload });
+  }
+
+  // Actual local delivery
+  broadcastLocal(roomId, event, payload) {
     if (!this.rooms.has(roomId)) return;
     
     const message = JSON.stringify({ event, payload, timestamp: Date.now() });
