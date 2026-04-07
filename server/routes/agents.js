@@ -152,4 +152,19 @@ router.get('/:id/versions', authenticateToken, (req, res) => {
   }
 });
 
+// Compare two versions
+router.get('/:id/compare', authenticateToken, (req, res) => {
+  try {
+    const { v1, v2 } = req.query;
+    const db = getDB();
+    const ver1 = db.prepare('SELECT config FROM agent_versions WHERE agent_id = ? AND version = ?').get(req.params.id, v1);
+    const ver2 = db.prepare('SELECT config FROM agent_versions WHERE agent_id = ? AND version = ?').get(req.params.id, v2);
+    
+    if (!ver1 || !ver2) return res.status(404).json({ error: 'Versions not found' });
+    res.json({ v1: JSON.parse(ver1.config), v2: JSON.parse(ver2.config) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to compare versions' });
+  }
+});
+
 export default router;

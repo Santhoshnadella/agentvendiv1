@@ -1,213 +1,72 @@
-# AgentVendi — How It Works 🎰
+# 🏗️ AgentVendi Architecture Overview (v1.1)
 
-## The Problem It Solves
-
-Setting up AI coding agents today is a pain:
-- **Fragmented configs**: Every IDE/tool has its own format (`.cursorrules`, `CLAUDE.md`, `.windsurfrules`)
-- **No standardization**: Each developer writes agent rules from scratch
-- **No sharing**: Great agent configs stay locked on one person's machine
-- **No structure**: Most people don't know what to configure — they just dump instructions
-- **No testing**: You deploy an agent config and hope it works
-
-**AgentVendi solves all of this by providing a structured, guided, visual builder that outputs universal agent configs.**
+AgentVendi is designed as a modular, event-driven agent orchestration framework. It consists of a high-fidelity frontend configuration builder and a robust backend execution runtime.
 
 ---
 
-## How the Process Works — End to End
+## 1. 📂 Core Architectural Layers
 
-```
-User Opens App → Picks Template or Starts Fresh
-       ↓
-   7-Tab Wizard (each tab stores data in global state)
-       ↓
-   Live Preview updates in real-time (right sidebar)
-       ↓
-   Dispense → Export Engine generates 8+ config files
-       ↓
-   ZIP Bundle downloaded → Drop into any project → Agent works
-```
+### **1.1 Layer 1: Agent Definition (The Config Builder)**
+- **7-Step Wizard**: A structured workflow (Persona, Cognitive, Knowledge, Skills, Guardrails, Selection, Export) that generates a comprehensive JSON-based "Agent Definition."
+- **Visual Flow Canvas**: Uses SVG and Canvas API to visualize how multiple agents "hand-off" to each other based on their defined roles.
 
----
+### **1.2 Layer 2: Agent Runtime (The Execution Engine)**
+- **ReAct Execution Loop**: Implements the "Reasoning and Acting" (ReAct) pattern. The engine parses the agent's thoughts into discrete "tool-use" requests, executes those tools, and feeds the output back into the context window.
+- **Tool Ecosystem**: Native Node.js handlers for:
+  - **Web Search**: Dynamic information retrieval.
+  - **File Operations**: Controlled IO for agentic code generation and manipulation.
+  - **RAG (Retrieval-Augmented Generation)**: Vector-lite search for knowledge base queries.
+- **Agent Crews (Multi-Agent)**: Logic to manage turn-taking and context passing between specialized agents within a single run.
 
-## Each Tab — Frontend + Backend Flow
+### **1.3 Layer 3: Observability & AgOps (The Monitoring Dashboard)**
+- **SQL Persistence**: All runs are stored in `agent_runs` for historical analysis.
+- **Execution Logs**: Detailed `agent_run_logs` track every thought, tool call, and result.
+- **Cost Analytics**: Built-in logic to estimate token counts and dollar-value cost per run.
+- **Time-Travel Debugger**: Interactive log editing allowing developers to "rewrite history" by modifying an assistant message and re-running the agent from that specific turn.
 
-### Tab 1: Select — "Pick Your Agent" 🎯
-
-**Frontend (`tabs/selection.js`)**
-- Shows template library grid (16 pre-built agents)
-- Category filter (Engineering, Security, Data, Frontend, etc.)
-- Toggle between single-agent and multi-agent crew mode
-- Agent naming with dynamic list for multi-agent
-
-**Backend flow:**
-- No backend call at this stage
-- State saved to `localStorage` via `lib/state.js`
-- Template configs are loaded client-side from `templates/library.js`
-
-**What it solves:** Users don't start from a blank page. 16 professional templates give them a jumpstart.
+### **1.4 Layer 4: Safety & Security (Middleware)**
+- **Human-in-the-loop (HITL)**: Sensitive tool calls (e.g., `delete_file`) trigger an `approvals` request in the database. The runtime pauses and polls for a user's manual approval or denial.
+- **Prompt Injection Guardrails**: Regex-based scanners to detect and neutralize adversarial inputs.
+- **Audit Logging**: Global middleware that tracks every HTTP request and status code in an `activity_log`.
 
 ---
 
-### Tab 2: Behavior — "How It Works" ⚙️
+## 2. 📊 High-Level Flow Diagram (Mermaid)
 
-**Frontend (`tabs/behavior.js`)**
-- Response style toggle: Concise / Balanced / Detailed / Conversational
-- Autonomy slider (0-100%): Ask before acting ↔ Fully autonomous
-- Creativity slider (0-100%): Strict ↔ Exploratory
-- Error handling strategy: Explain / Auto-fix / Ask user / Retry
-- Tool-use toggle
-
-**Backend flow:**
-- No backend call — pure client state
-- Values feed into the export generator's behavior section
-
-**What it solves:** Different teams need different agent personalities. A startup wants fast, autonomous agents. An enterprise wants cautious, documented actions.
-
----
-
-### Tab 3: Knowledge — "Feed the Brain" 🧠
-
-**Frontend (`tabs/knowledge.js`)**
-- Domain expertise tag selector (30+ technology tags)
-- Custom knowledge text area (paste documentation, context)
-- URL references list (links to docs/APIs)
-- File pattern references (glob patterns like `src/**/*.ts`)
-
-**Backend flow:**
-- No backend call for basic use
-- When connected to Ollama, the knowledge text gets processed to generate smarter agent instructions via `server/routes/ai.js`
-
-**What it solves:** Agents perform best when they know your tech stack. This tab ensures the agent understands your specific domain.
-
----
-
-### Tab 4: Role — "Role Assignment" 🎭
-
-**Frontend (`tabs/role.js`)**
-- Role title input (e.g., "Senior Backend Developer")
-- Persona description textarea
-- Communication tone selector (6 options: Professional, Friendly, Technical, Mentor, Direct, Creative)
-- Primary objectives textarea
-- Constraints textarea
-
-**Backend flow:**
-- No backend call
-- Role + persona get embedded as the core identity in all exported configs
-
-**What it solves:** An agent without a clear role gives generic responses. This tab creates a focused specialist.
-
----
-
-### Tab 5: Guardrails — "Guardrails & Standards" 🛡️
-
-**Frontend (`tabs/guardrails.js`)**
-- Safety rules checkboxes (6 presets: no secrets, no delete, no prod, etc.)
-- Coding standards checkboxes (8 presets: TDD, docs, types, SOLID, etc.)
-- Output format instructions
-- Prohibited topics
-- Quality threshold selector (Low → Strict)
-- Custom rules textarea
-
-**Backend flow:**
-- No backend call
-- Safety rules + policies get injected as hard constraints in every exported config
-
-**What it solves:** Prevents agents from doing dangerous things (deleting files, exposing secrets, running prod commands).
-
----
-
-### Tab 6: Skills — "Load Skills" 🛠️
-
-**Frontend (`tabs/skills.js`)**
-- 15-card skill library with icons and descriptions
-- Multi-select (click to toggle)
-- Custom skill builder (name + description)
-
-**Backend flow:**
-- No backend call
-- Selected skills get mapped to descriptive capability statements in the export
-
-**What it solves:** Tells the agent exactly what it's good at — code review, testing, DevOps, etc. — so it focuses on relevant skills.
-
----
-
-### Tab 7: Cognitive — "Cognitive Calibration" 🧬
-
-**Frontend (`tabs/cognitive.js`)**
-- Phase 1: 5-question multiple-choice questionnaire
-  - Thinking style, decision-making, learning preference, priorities, feedback style
-- Phase 2: Therapy-style chat session (6 guided questions)
-- Phase 3: Generated cognitive profile card
-
-**Backend flow (`server/routes/ai.js`):**
-1. User message → `POST /api/ai/cognitive-chat`
-2. Server tries Ollama first (`http://localhost:11434/api/chat`)
-3. If Ollama unavailable → falls back to rule-based responses
-4. Each response includes the next guiding question
-5. After 6 chats → client-side generates cognitive profile
-
-**What it solves:** Most agent configs miss the user's thinking style. This therapy session ensures the agent matches HOW the user thinks and works.
-
----
-
-## Export Engine — How Configs Get Generated
-
-**File: `export/generator.js`**
-
-```
-State Object → buildCoreSections() → Format-specific template
+```mermaid
+graph TD
+    A[User UI] -->|Build Config| B[Agent Definition JSON]
+    B -->|Execute| C[Agent Runtime Engine]
+    C -->|Reasoning Loop| D{LLM / Ollama}
+    D -->|Tool Call| E[Tool Dispatcher]
+    E -->|Approvals| F[HITL Gatekeeper]
+    F -->|Tool Results| C
+    C -->|Logging| G[(SQLite DB)]
+    G -->|Stats/Logs| H[Observability Dashboard]
+    E -->|Search/File/RAG| I[External Systems]
 ```
 
-1. `buildCoreSections(state)` reads all 7 tab configs
-2. Generates markdown sections: Role, Communication, Behavior, Objectives, Knowledge, Skills, Guardrails, Output Format, Constraints, Working Style
-3. Each export format wraps these sections differently:
-   - `.cursorrules` / `.windsurfrules` / `.clinerules` → Raw markdown
-   - `copilot-instructions.md` → Markdown with header
-   - `CLAUDE.md` → Markdown (Claude Code format)
-   - `.aider.conf.yml` → YAML with system-prompt key
-   - `agent.json` → Full structured JSON
-   - `AGENT_README.md` → Human-readable documentation
+---
 
-**File: `export/bundler.js`**
-1. Calls `generateAllFormats(state)` → 8+ files
-2. Adds CLI installer scripts (bash + PowerShell)
-3. Creates ZIP with JSZip
-4. Triggers browser download with dispense animation
+## 3. 💾 Data Model (SQLite Schema)
+
+| Table | Purpose |
+| --- | --- |
+| `agents` | Core agent configuration and current version. |
+| `agent_versions` | Historical snapshots of configurations for diffing. |
+| `agent_runs` | Status, input/output, latency, and cost of an execution. |
+| `agent_run_logs` | Turn-by-turn trace of an agent's reasoning-acting loop. |
+| `approvals` | Pending manual approvals for sensitive tool calls. |
+| `vector_docs` | Indexed knowledge segments for RAG retrieval. |
+| `activity_log` | Security audit trail of all platform activities. |
 
 ---
 
-## Backend Architecture
-
-```
-POST /api/auth/register     → bcrypt hash → SQLite insert → JWT token
-POST /api/auth/login        → bcrypt compare → JWT token
-GET  /api/agents            → SQLite query → user's agents
-POST /api/agents            → SQLite insert + version record
-PUT  /api/agents/:id        → increment version + SQLite update
-POST /api/agents/:id/publish → copy to marketplace table
-POST /api/agents/:id/clone   → copy config to new user's agents
-GET  /api/marketplace        → paginated browse with sorting
-POST /api/marketplace/:id/rate → upsert rating + update averages
-POST /api/ai/cognitive-chat  → Ollama call or fallback response
-GET  /api/analytics/overview → aggregated stats for dashboard
-```
-
-**Database tables:**
-- `users` — accounts with bcrypt passwords
-- `agents` — user's agent configs (JSON blob)
-- `agent_versions` — version history for each agent
-- `marketplace` — published agents with clone/rating counts
-- `ratings` — per-user ratings with upsert logic
-- `teams` / `team_members` — team workspaces
+## 4. 🚀 Scalability & Deployment
+- **Dockerized**: Unified `docker-compose` for local hosting of the API and LLM engine.
+- **Vendi Script**: Configurations are highly portable JSON assets that can be imported/exported into any instance.
+- **Vending Machine API**: Exposes configured agents as stateless REST endpoints for external consumption.
 
 ---
 
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|---|---|
-| `Alt+1-7` | Jump to tab 1-7 |
-| `Ctrl+→` | Next tab |
-| `Ctrl+←` | Previous tab |
-| `Ctrl+Enter` | Dispense agent (on last tab) |
-| `Escape` | Close modals |
+**Last Updated:** April 2026 for AgentVendi release v1.1

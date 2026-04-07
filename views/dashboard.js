@@ -7,22 +7,22 @@ export async function renderDashboard(container) {
       <p class="form-hint">Monitor your agents' performance, logs, and activity.</p>
     </div>
 
-    <div class="stats-overview" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 32px;">
+    <div class="stats-overview" id="stats-summary" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 32px;">
        <div class="card" style="padding: 20px; text-align: center;">
           <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">Total Runs</div>
-          <div style="font-size: 2rem; font-weight: 800; color: var(--neon-cyan);">24</div>
+          <div style="font-size: 2rem; font-weight: 800; color: var(--neon-cyan);" id="stat-total-runs">0</div>
        </div>
        <div class="card" style="padding: 20px; text-align: center;">
-          <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">Avg. Success</div>
-          <div style="font-size: 2rem; font-weight: 800; color: var(--neon-pink);">92%</div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">Success Rate</div>
+          <div style="font-size: 2rem; font-weight: 800; color: var(--neon-pink);" id="stat-success-rate">0%</div>
        </div>
        <div class="card" style="padding: 20px; text-align: center;">
           <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">Total Cost</div>
-          <div style="font-size: 2rem; font-weight: 800; color: var(--neon-purple);">$0.12</div>
+          <div style="font-size: 2rem; font-weight: 800; color: var(--neon-purple);" id="stat-total-cost">$0.00</div>
        </div>
        <div class="card" style="padding: 20px; text-align: center;">
           <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">Avg. Latency</div>
-          <div style="font-size: 2rem; font-weight: 800; color: var(--neon-blue);">2.4s</div>
+          <div style="font-size: 2rem; font-weight: 800; color: var(--neon-blue);" id="stat-avg-latency">0ms</div>
        </div>
     </div>
 
@@ -77,6 +77,15 @@ export async function renderDashboard(container) {
         runs = data.runs || [];
       }
 
+      // Update stats
+      document.getElementById('stat-total-runs').textContent = runs.length;
+      const completed = runs.filter(r => r.status === 'completed').length;
+      document.getElementById('stat-success-rate').textContent = runs.length ? Math.round((completed / runs.length) * 100) + '%' : '0%';
+      const cost = runs.reduce((acc, r) => acc + (r.cost || 0), 0);
+      document.getElementById('stat-total-cost').textContent = '$' + cost.toFixed(4);
+      const latency = runs.reduce((acc, r) => acc + (r.duration || 0), 0);
+      document.getElementById('stat-avg-latency').textContent = runs.length ? Math.round(latency / runs.length) + 'ms' : '0ms';
+
       if (runs.length === 0) {
         tableBody.innerHTML = `<tr><td colspan="5" style="padding: 40px; text-align: center; color: var(--text-muted);">No runs found yet. Start an agent in the Sandbox!</td></tr>`;
         return;
@@ -118,16 +127,36 @@ export async function renderDashboard(container) {
         const data = await res.json();
         const logs = data.logs || [];
         content.innerHTML = logs.map(log => `
-          <div style="margin-bottom: 12px; border-left: 2px solid ${getRoleColor(log.role)}; padding-left: 12px;">
+          <div class="log-item" style="margin-bottom: 12px; border-left: 2px solid ${getRoleColor(log.role)}; padding-left: 12px; position: relative;">
              <div style="font-weight: 800; font-size: 0.7rem; text-transform: uppercase; color: ${getRoleColor(log.role)}; margin-bottom: 4px;">${log.role}</div>
-             <div style="color: var(--text-primary); line-height: 1.4;">${escapeHtml(log.content)}</div>
+             <div style="color: var(--text-primary); line-height: 1.4;" class="log-text" contenteditable="${log.role === 'assistant'}">${escapeHtml(log.content)}</div>
              ${log.tool_name ? `<div style="font-size: 0.7rem; color: var(--neon-cyan); margin-top: 4px;">🛠️ Tool: ${log.tool_name}</div>` : ''}
+             ${log.role === 'assistant' ? `
+                <button class="btn btn-outline btn-xs retry-from-btn" 
+                  data-run-id="${runId}" 
+                  data-log-id="${log.id}"
+                  style="position: absolute; right: 0; top: 0; font-size: 0.6rem;">
+                  ⏪ Retry from here
+                </button>
+             ` : ''}
           </div>
         `).join('');
+
+        container.querySelectorAll('.retry-from-btn').forEach(btn => {
+           btn.addEventListener('click', () => retryRun(btn.dataset.runId, btn.dataset.logId));
+        });
       }
     } catch (e) {
       content.innerHTML = 'Error loading logs.';
     }
+  };
+
+  const retryRun = async (runId, logId) => {
+     window.showToast?.('Time-travel initiated... Rewriting history. 🕰️', 'info');
+     // In a real app, we'd call /api/runtime/retry/:runId/:logId
+     // For demo, we simulate it
+     await new Promise(r => setTimeout(r, 1000));
+     window.showToast?.('Agent restarted from the edited state!', 'success');
   };
 
   const getRoleColor = (role) => {

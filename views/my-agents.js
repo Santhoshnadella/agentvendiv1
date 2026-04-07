@@ -55,11 +55,46 @@ export async function renderMyAgents(container) {
         </div>
       </div>
     </div>
+    
+    <div class="card" id="api-keys-section" style="margin-top: 32px;">
+       <div style="padding: 16px; border-bottom: var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-weight: 700;">🎰 Vending Machine API</div>
+          <button class="btn btn-outline btn-sm" id="generate-key-btn">🔑 Generate New Key</button>
+       </div>
+       <div style="padding: 24px;">
+          <p class="form-hint">Use these keys to call your agents from any application. <strong>Note: Your current agents are eligible for "vending-mode" calls.</strong></p>
+          <div id="api-keys-list" style="margin-bottom: 20px;">
+             <div style="color: var(--text-muted); font-size: 0.85rem;">No API keys yet.</div>
+          </div>
+
+          <div class="code-block" style="background: rgba(0,0,0,0.4); padding: 16px; border-radius: 8px;">
+             <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">CURL Example (Vending Machine API)</div>
+             <pre style="font-size: 0.75rem; color: var(--neon-cyan); margin: 0; white-space: pre-wrap;">
+curl -X POST http://localhost:3001/api/v1/execute/YOUR_AGENT_ID \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -d '{"input": "Update my database logic", "hitl": true}'
+             </pre>
+          </div>
+       </div>
+    </div>
   `;
 
   // Import button
   container.querySelector('#import-agent-btn')?.addEventListener('click', () => {
     container.querySelector('#import-modal').classList.remove('hidden');
+  });
+
+  // Key generation logic (mock for demo)
+  container.querySelector('#generate-key-btn')?.addEventListener('click', () => {
+     const key = `av_${Math.random().toString(36).substring(2, 30)}`;
+     const keyList = container.querySelector('#api-keys-list');
+     keyList.innerHTML = `
+        <div class="card" style="padding: 12px; margin-bottom: 8px; border-color: var(--neon-cyan); display: flex; justify-content: space-between; align-items: center;">
+           <code style="color: var(--neon-cyan); font-weight: 700;">${key}</code>
+           <span style="font-size: 0.65rem; color: var(--text-muted);">Active · Created Today</span>
+        </div>
+     `;
+     window.showToast?.('Key generated! Save it securely. 🛡️', 'success');
   });
 
   container.querySelector('#close-import')?.addEventListener('click', () => {
@@ -153,6 +188,7 @@ function renderAgentDashboard(container, agents) {
         <div class="form-hint">${a.role || 'No role defined'} · v${a.version || 1}</div>
       </div>
       <div class="agent-list-actions">
+        <button class="btn btn-outline btn-sm" data-action="history" data-id="${a.id}" title="Version History">🕰️ History</button>
         <button class="btn btn-outline btn-sm" data-action="export" data-id="${a.id}" title="Export">📥 Export</button>
         <button class="btn btn-outline btn-sm" data-action="publish" data-id="${a.id}" title="Publish">🌐 Publish</button>
         <button class="btn btn-danger btn-sm" data-action="delete" data-id="${a.id}" title="Delete">✕</button>
@@ -177,6 +213,21 @@ function renderAgentDashboard(container, agents) {
           window.showToast?.(err.message, 'error');
         }
       }
+    } else if (action === 'history') {
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.innerHTML = `
+        <div class="modal-backdrop"></div>
+        <div class="modal-content glass-panel" style="max-width: 900px; width: 95%;">
+           <button class="auth-close" onclick="this.closest('.modal').remove()">✕</button>
+           <div id="diff-container">Loading version history...</div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      const { renderVersionDiff } = await import('./version-diff.js');
+      // For demo, we diff v1 and latest (v${btn.dataset.version})
+      const agent = agents.find(ag => ag.id === id);
+      renderVersionDiff(modal.querySelector('#diff-container'), id, 1, agent.version || 1);
     } else if (action === 'publish') {
       try {
         await api.publishAgent(id);

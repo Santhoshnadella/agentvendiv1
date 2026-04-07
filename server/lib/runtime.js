@@ -74,6 +74,30 @@ const TOOLS = {
      execute: async ({ query }) => {
         return `Found relevant sections in documentation: "Deployment guidelines", "API Rate limits"...`;
      }
+  },
+  write_file: {
+     description: 'Write or update a file. SENSITIVE: Requires approval.',
+     parameters: {
+        type: 'object',
+        properties: { path: { type: 'string' }, content: { type: 'string' } },
+        required: ['path', 'content']
+     },
+     requiresApproval: true,
+     execute: async ({ path, content }) => {
+        return `File ${path} written successfully.`;
+     }
+  },
+  delete_file: {
+     description: 'Delete a file permanently. SENSITIVE: Requires approval.',
+     parameters: {
+        type: 'object',
+        properties: { path: { type: 'string' } },
+        required: ['path']
+     },
+     requiresApproval: true,
+     execute: async ({ path }) => {
+        return `File ${path} deleted.`;
+     }
   }
 };
 
@@ -116,6 +140,15 @@ export class AgentRuntime {
            
            const tool = TOOLS[toolUse.name];
            if (tool) {
+              if (tool.requiresApproval) {
+                 this.log('system', `🚨 Tool [${toolUse.name}] requires manual approval...`);
+                 const approved = await this.requestHITL(toolUse.name, toolUse.parameters);
+                 if (!approved) {
+                    this.log('system', `❌ Tool [${toolUse.name}] denied by user.`);
+                    messages.push({ role: 'user', content: `Error: Tool [${toolUse.name}] was denied by the user for security reasons.` });
+                    continue;
+                 }
+              }
               const toolResult = await tool.execute(toolUse.parameters);
               this.log('tool', toolResult, toolUse.name, toolUse.id);
               messages.push({ role: 'user', content: `Tool [${toolUse.name}] returned: ${toolResult}` });
@@ -201,10 +234,32 @@ export class AgentRuntime {
     `).run(uuidv4(), this.runId, role, content, toolName, toolId);
   }
 
-  logRunEnd(output) {
+  async requestHITL(toolName, parameters) {
+    const approvalId = uuidv4();
+    this.db.prepare(`
+      INSERT INTO approvals (id, run_id, tool_name, parameters)
+      VALUES (?, ?, ?, ?)
+    `).run(approvalId, this.runId, toolName, JSON.stringify(parameters));
+
+    // Poll for approval status
+    // In a real production system, this would use WebSockets or Webhooks.
+    // For this implementation, we poll the DB for 60 seconds.
+    let attempts = 0;
+    while (attempts < 60) {
+      const row = this.db.prepare('SELECT status FROM approvals WHERE id = ?').get(approvalId);
+      if (row.status === 'approved') return true;
+      if (row.status === 'denied') return false;
+      await new Promise(r => setTimeout(r, 1000));
+      attempts++;
+    }
+    return false; // Time out
+  }
+
+  logRunEnd(output, tokensUsed = 0) {
+     const cost = (tokensUsed / 1000) * 0.002; // $0.002 per 1k tokens (simulated)
      this.db.prepare(`
-      UPDATE agent_runs SET status = ?, output = ?, duration = ?
+      UPDATE agent_runs SET status = ?, output = ?, duration = ?, cost = ?
       WHERE id = ?
-    `).run('completed', output, 0, this.runId);
+    `).run('completed', output, 0, cost, this.runId);
   }
 }

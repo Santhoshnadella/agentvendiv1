@@ -1,61 +1,75 @@
-# AgentVendi v1 — Release Walkthrough 🎰
+# 🚀 AgentVendi Release Walkthrough (v1.1) — "God-Level" Update
 
-Hey there! Welcome to the final, professional-grade release of **AgentVendi v1**. This is the ProductHunt-ready "AI Agent Vending Machine" you've been waiting for.
-
----
-
-## 🏗️ Pre-Launch Checklist
-
-1.  **Start the Platform**: Run `npm run dev`.
-2.  **Access the Admin Portal**: Navigate to `http://localhost:3000/admin`.
-3.  **Check the Vending Machine**: Head to the Home page at `http://localhost:3000/`.
+Follow this 12-step masterclass to experience the full feature set of AgentVendi v1.1.
 
 ---
 
-## 🕹️ Full-Flow Verification
+## 🏗️ Step 1: Initialize Your Environment
+1.  **Clone & Install**: `npm install`
+2.  **Start Services**: `docker-compose up -d` (Launch AgentVendi API + Ollama Engine).
+3.  **Boot the UI**: `npm run dev`
 
-### 1. Landing Page (Home)
-- **Verify**: See the immersive hero section with the CSS-3D machine.
-- **Action**: Click "Start Building →" to enter the wizard.
+## 🎯 Step 2: Build Your First Agent (The 7-Step Wizard)
+1.  Navigate to the **Create** tab.
+2.  **Persona**: Define a "Cybersecurity Auditor" with a "stern but professional" tone.
+3.  **Cognitive**: Set the reasoning style to "Detailed" and autonomy to 85%.
+4.  **Knowledge**: Upload your `API_SECURITY.md` or a URL for RAG retrieval.
+5.  **Skills**: Select "Code Review", "Security Audit", and "Documentation".
+6.  **Guardrails**: Add a rule: "Never expose private keys or passwords in the output."
 
-### 2. Tab 1: Selection
-- **Mode**: Choose "Single" or "Multi".
-- **Action**: Name your agent (e.g. "Security Auditor").
+## 👥 Step 3: Create a Multi-Agent Crew
+1.  In the **Selection** tab, toggle **Multi-Agent Mode**.
+2.  Add a second agent: "Lead Developer" with "Conversational" tone.
+3.  **Handoffs**: Set the "Auditor" to handoff to the "Developer" if a bug is found.
+4.  **Visualizar**: Check the **Flow Canvas** to see the automatic architecture diagram.
 
-### 3. Tab 4: Role (Calibrate Persona)
-- **Role Title**: "Security Engineer".
-- **Persona**: "Helpful and direct reviewer".
-- **Objectives**: "Audit Python code for OWASP Top 10".
+## 🧪 Step 4: Live Execution in the Sandbox
+1.  Navigate to the **Sandbox** tab.
+2.  **Voice Interaction**: Toggle **🎙️ Voice** to "On".
+3.  **Brain Inspector**: Watch the "Brain" panel materialize as you send: *"Is there a SQL injection in this login code?"*
+4.  Observe the **Cognitive Retrieval** and **Tool Dispatcher** live-updates in the brain panel.
 
-### 4. Tab 6: Skills (AI Intelligence)
-- **Feature**: Click **🧠 AI Suggest Skills**.
-- **Result**: Verify that **Transformers.js** (running locally in your browser!) suggests "Security" and "Debugging".
+## 🛡️ Step 5: High-Stakes Tooling & HITL
+1.  Trigger a sensitive action: *"Delete the outdated `auth-backup.js` file."*
+2.  The agent will enter a "Paused" state.
+3.  Navigate to the **Monitoring Dashboard** to find the **Pending Approval** request.
+4.  Click **Approve** to let the agent proceed or **Deny** to block it.
 
-### 5. Tab 7: Cognitive (Biological Sync)
-- **Action**: Answer at least 3 questions in the "Therapy Mode" questionnaire.
-- **Verify**: See the generated **Cognitive Profile** (Abstract/Decisive/Rational).
+## 📺 Step 6: Full Observability & MLOps
+1.  Check the **Stats Overview** for Total Runs, Success Rate, Average Latency, and **Total Token Cost**.
+2.  View the **Agent Run History** table to see your previous executions.
 
-### 6. Dispense & Local Install
-- **Action**: Click **Dispense Agent 🎰**.
-- **Result**: Download a ZIP containing `.cursorrules`, `CLAUDE.md`, and other IDE formats.
-- **Install**: Run `sh install.sh` in any project folder to immediately equip your agent.
+## 🕰️ Step 7: Time-Travel Debugging
+1.  Click **View Logs** on a completed run.
+2.  Edit one of the agent's assistant messages to change its reasoning.
+3.  Click **⏪ Retry from here** to re-run the agent from that turn with your "correction" in its memory.
+
+## 🔄 Step 8: Version Diffing
+1.  Navigate to **My Agents**.
+2.  Modify your agent and save a new version.
+3.  Click **🕰️ History** on the agent card to see the **Visual Diff** of what changed between versions.
+
+## 🎰 Step 9: Use the Vending Machine API
+1.  In **My Agents**, click **🔑 Generate New Key**.
+2.  Copy your API Key and the provided `curl` command.
+3.  Test it: `curl -X POST ...` from your terminal to call your agent programmatically.
+
+## ⚖️ Step 10: Run the Benchmark Suite
+1.  Navigate to the **Benchmark** (Evaluator) tab.
+2.  Start a "Security Stress Test" on your Auditor agent.
+3.  Watch the **Standardized Scoring** (Reliability, Tone, Tool Use) and **Performance Comparison**.
+
+## 🌐 Step 11: Community Marketplace
+1.  Navigate to the **Marketplace** tab.
+2.  Check out the **SDR Outbound** or **Deep Researcher** templates.
+3.  See the **Live Stats** (Clones/Usage) for each agent before cloning it.
+
+## 📦 Step 12: Production Export
+1.  Go to **Export** tab.
+2.  Choose **Docker Bundle**.
+3.  Download your fully self-contained agentic microservice, ready for Vercel, Render, or any enterprise intranet.
 
 ---
 
-## 🏛️ Masterclass Portal & Quick-Build
-- **View**: Click the **🎓 Guide** button in the Top Bar.
-- **Action**: Paste your agent script description into the **Script-to-Agent** panel.
-- **Verify**: Watch the machine auto-configure based on the 12-step mastery framework.
-
----
-
-## 🏛️ Admin & Enterprise Control
-- **View**: Go to `http://localhost:3000/admin`.
-- **Enterprise**: Click the **🏢 Enterprise** tab.
-- **Action**: Set a "Global Mandatory Guardrail" (e.g. "Never expose private keys").
-- **Verify**: Create any new agent and see the policy automatically injected into the **Preview**.
-
----
-
-### 🔥 You are now ready to launch! 
-*AgentVendi v1 — The future of AI agent creation is local, enterprise-ready, and immersive.*
+**Last Updated:** April 2026
+**Version:** 1.1 "AgOps Masterclass"

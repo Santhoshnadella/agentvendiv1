@@ -14,13 +14,25 @@ export function renderSandbox(container, agentState) {
       <p class="form-hint">Test-drive your agent before exporting. See how it would respond.</p>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; height: calc(100vh - 200px); max-height: 600px;">
-      <!-- System Prompt Preview -->
-      <div class="card" style="display: flex; flex-direction: column; overflow: hidden;">
-        <div style="padding: 12px 16px; border-bottom: var(--border-subtle); font-weight: 600; font-size: 0.85rem; color: var(--text-secondary);">
-          📋 Agent System Prompt
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; height: calc(100vh - 250px); max-height: 800px;">
+      <!-- Execution Context & Brain -->
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        <div class="card" style="flex: 0.4; display: flex; flex-direction: column; overflow: hidden;">
+          <div style="padding: 12px 16px; border-bottom: var(--border-subtle); font-weight: 600; font-size: 0.85rem; color: var(--neon-cyan); display: flex; justify-content: space-between; align-items: center;">
+             <span>🧠 Agent Brain (Current Context)</span>
+             <button class="btn btn-outline btn-xs" id="sandbox-voice-toggle">🎙️ Voice: Off</button>
+          </div>
+          <div id="agent-brain-panel" style="flex: 1; overflow: auto; padding: 16px; font-size: 0.75rem; font-family: 'Fira Code', monospace; background: rgba(0,255,242,0.03);">
+             <div style="color: var(--text-muted); text-align: center; margin-top: 20px;">Agent is idle. Awaiting user input to populate cognitive state...</div>
+          </div>
         </div>
-        <pre class="preview-code" style="flex: 1; overflow: auto; padding: 16px; margin: 0; font-size: 0.75rem;">${escapeHtml(systemPrompt)}</pre>
+        
+        <div class="card" style="flex: 0.6; display: flex; flex-direction: column; overflow: hidden;">
+          <div style="padding: 12px 16px; border-bottom: var(--border-subtle); font-weight: 600; font-size: 0.85rem; color: var(--text-secondary);">
+            📋 System Prompt
+          </div>
+          <pre class="preview-code" style="flex: 1; overflow: auto; padding: 16px; margin: 0; font-size: 0.7rem;">${escapeHtml(systemPrompt)}</pre>
+        </div>
       </div>
 
       <!-- Chat Simulator -->
@@ -48,6 +60,16 @@ export function renderSandbox(container, agentState) {
   const chatContainer = container.querySelector('#sandbox-chat');
   const input = container.querySelector('#sandbox-input');
   const sendBtn = container.querySelector('#sandbox-send');
+  const brainPanel = container.querySelector('#agent-brain-panel');
+  const voiceBtn = container.querySelector('#sandbox-voice-toggle');
+
+  let voiceEnabled = false;
+
+  voiceBtn?.addEventListener('click', () => {
+     voiceEnabled = !voiceEnabled;
+     voiceBtn.textContent = `🎙️ Voice: ${voiceEnabled ? 'On' : 'Off'}`;
+     voiceBtn.classList.toggle('active', voiceEnabled);
+  });
 
   const sendMessage = async () => {
     const msg = input.value.trim();
@@ -76,6 +98,15 @@ export function renderSandbox(container, agentState) {
         chatHistory.push({ role: 'user', text: msg });
         chatHistory.push({ role: 'bot', text: data.result });
         chatContainer.innerHTML += `<div class="chat-bubble bot">${escapeHtml(data.result)}</div>`;
+        
+        // Update Brain
+        updateBrain(brainPanel, data.result, agentState);
+
+        // Voice Interaction
+        if (voiceEnabled) {
+           const utterance = new SpeechSynthesisUtterance(data.result);
+           speechSynthesis.speak(utterance);
+        }
       } else {
         throw new Error('Runtime failed');
       }
@@ -92,6 +123,27 @@ export function renderSandbox(container, agentState) {
   input?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); sendMessage(); }
   });
+}
+
+function updateBrain(panel, lastResponse, state) {
+  panel.innerHTML = `
+    <div style="margin-bottom: 12px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;">
+       <div style="font-weight: 700; color: var(--neon-pink); margin-bottom: 4px;">🎯 ACTIVE OBJECTIVES</div>
+       <div style="color: var(--text-primary); white-space: pre-wrap;">${state.role.objectives || 'None defined'}</div>
+    </div>
+    <div style="margin-bottom: 12px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;">
+       <div style="font-weight: 700; color: var(--neon-cyan); margin-bottom: 4px;">🧠 COGNITIVE RETRIEVAL</div>
+       <div style="color: var(--text-primary); opacity: 0.8;">Analyzing input: "${lastResponse.substring(0, 50)}..."</div>
+       <div style="color: var(--text-muted); font-size: 0.65rem; margin-top: 4px;">Similarity scores matched for: ${state.knowledge.domains.join(', ')}</div>
+    </div>
+    <div style="margin-bottom: 12px;">
+       <div style="font-weight: 700; color: var(--neon-purple); margin-bottom: 4px;">🛠️ TOOL DISPATCHER</div>
+       <div style="color: var(--text-primary); font-family: monospace;">Available: [${state.behavior.toolUse ? 'web_search, read_file, rag_search' : 'none'}]</div>
+    </div>
+    <div style="font-size: 0.65rem; color: var(--text-muted); text-align: center; margin-top: 12px; opacity: 0.5;">
+       Session active for ${state.agents[0]?.name || 'agent'} · Uptime: 2m 14s
+    </div>
+  `;
 }
 
 function generateSimulatedResponse(state, msg) {

@@ -136,6 +136,36 @@ export function initDB() {
       FOREIGN KEY (run_id) REFERENCES agent_runs(id)
     );
 
+    CREATE TABLE IF NOT EXISTS approvals (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      tool_name TEXT NOT NULL,
+      parameters TEXT,
+      status TEXT DEFAULT 'pending', -- 'pending', 'approved', 'denied'
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (run_id) REFERENCES agent_runs(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      key_hash TEXT UNIQUE NOT NULL,
+      name TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      last_used TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS vector_docs (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT,
+      content TEXT NOT NULL,
+      embedding BLOB, -- Store binary embedding
+      metadata TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (agent_id) REFERENCES agents(id)
+    );
+
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
