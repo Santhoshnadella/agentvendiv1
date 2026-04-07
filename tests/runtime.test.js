@@ -6,26 +6,28 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Mock the database before importing the runtime ─────────
 vi.mock('../server/db.js', () => {
-  const rows = [];
-  const mockDb = {
-    prepare: vi.fn(() => ({
-      run: vi.fn((...args) => { rows.push(args); return { changes: 1 }; }),
-      get: vi.fn((key) => {
-        if (key === 'enterprise_config') return { value: '{}' };
-        // Simulate approval auto-approve for tests
-        return { status: 'approved' };
-      }),
-      all: vi.fn(() => []),
-    })),
-    exec: vi.fn(),
-    pragma: vi.fn(),
-  };
   return {
-    getDB: () => mockDb,
-    initDB: () => mockDb,
-    _rows: rows,
+    getDB: vi.fn(),
+    initDB: vi.fn(),
+    query: vi.fn(async () => []),
+    querySingle: vi.fn(async (sql) => {
+        if (sql.includes('settings')) return { value: '{}' };
+        return null;
+    }),
+    semanticSearch: vi.fn(async () => []),
+    withTransaction: vi.fn(async (cb) => cb(vi.fn()))
   };
 });
+
+vi.mock('../server/lib/redis.js', () => ({
+    redis: {
+        init: vi.fn(),
+        get: vi.fn(),
+        set: vi.fn(),
+        publish: vi.fn(),
+        subscribe: vi.fn()
+    }
+}));
 
 // ── Tool Registry Tests ────────────────────────────────────
 describe('Tool Registry', () => {
