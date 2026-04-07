@@ -64,11 +64,25 @@ export function renderSandbox(container, agentState) {
   const voiceBtn = container.querySelector('#sandbox-voice-toggle');
 
   let voiceEnabled = false;
+  const sessionStart = Date.now();
 
+  // ── Voice (TTS) Setup ──
+  // Uses the Web Speech API (SpeechSynthesis interface)
+  // https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesis
   voiceBtn?.addEventListener('click', () => {
      voiceEnabled = !voiceEnabled;
      voiceBtn.textContent = `🎙️ Voice: ${voiceEnabled ? 'On' : 'Off'}`;
      voiceBtn.classList.toggle('active', voiceEnabled);
+     if (voiceEnabled) {
+        // Test TTS availability
+        if (!('speechSynthesis' in window)) {
+           window.showToast?.('Text-to-Speech not supported in this browser.', 'error');
+           voiceEnabled = false;
+           voiceBtn.textContent = '🎙️ Voice: Off';
+           return;
+        }
+        window.showToast?.('Voice enabled. Agent will speak responses aloud.', 'success');
+     }
   });
 
   const sendMessage = async () => {
@@ -100,12 +114,25 @@ export function renderSandbox(container, agentState) {
         chatContainer.innerHTML += `<div class="chat-bubble bot">${escapeHtml(data.result)}</div>`;
         
         // Update Brain
-        updateBrain(brainPanel, data.result, agentState);
+        updateBrain(brainPanel, data.result, agentState, sessionStart);
 
-        // Voice Interaction
-        if (voiceEnabled) {
-           const utterance = new SpeechSynthesisUtterance(data.result);
-           speechSynthesis.speak(utterance);
+        // Voice Interaction — Web Speech API
+        // Uses SpeechSynthesisUtterance for text-to-speech output.
+        // Selects a natural-sounding voice when available.
+        if (voiceEnabled && 'speechSynthesis' in window) {
+           try {
+              speechSynthesis.cancel(); // Cancel any ongoing speech
+              const utterance = new SpeechSynthesisUtterance(data.result);
+              utterance.rate = 1.0;
+              utterance.pitch = 1.0;
+              // Pick a natural voice if available
+              const voices = speechSynthesis.getVoices();
+              const preferred = voices.find(v => v.name.includes('Google') || v.name.includes('Natural'));
+              if (preferred) utterance.voice = preferred;
+              speechSynthesis.speak(utterance);
+           } catch (ttsErr) {
+              console.warn('TTS failed:', ttsErr);
+           }
         }
       } else {
         throw new Error('Runtime failed');
@@ -125,23 +152,31 @@ export function renderSandbox(container, agentState) {
   });
 }
 
-function updateBrain(panel, lastResponse, state) {
+function updateBrain(panel, lastResponse, state, sessionStart) {
+  const uptimeMs = Date.now() - (sessionStart || Date.now());
+  const upMinutes = Math.floor(uptimeMs / 60000);
+  const upSeconds = Math.floor((uptimeMs % 60000) / 1000);
+
   panel.innerHTML = `
     <div style="margin-bottom: 12px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;">
        <div style="font-weight: 700; color: var(--neon-pink); margin-bottom: 4px;">🎯 ACTIVE OBJECTIVES</div>
-       <div style="color: var(--text-primary); white-space: pre-wrap;">${state.role.objectives || 'None defined'}</div>
+       <div style="color: var(--text-primary); white-space: pre-wrap; font-size: 0.7rem;">${state.role?.objectives || 'None defined'}</div>
     </div>
     <div style="margin-bottom: 12px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;">
-       <div style="font-weight: 700; color: var(--neon-cyan); margin-bottom: 4px;">🧠 COGNITIVE RETRIEVAL</div>
-       <div style="color: var(--text-primary); opacity: 0.8;">Analyzing input: "${lastResponse.substring(0, 50)}..."</div>
-       <div style="color: var(--text-muted); font-size: 0.65rem; margin-top: 4px;">Similarity scores matched for: ${state.knowledge.domains.join(', ')}</div>
+       <div style="font-weight: 700; color: var(--neon-cyan); margin-bottom: 4px;">🧠 CONTEXT WINDOW</div>
+       <div style="color: var(--text-primary); opacity: 0.8; font-size: 0.7rem;">Last output: "${lastResponse.substring(0, 80)}..."</div>
+       <div style="color: var(--text-muted); font-size: 0.65rem; margin-top: 4px;">Domains: ${(state.knowledge?.domains || []).join(', ') || 'none'}</div>
     </div>
     <div style="margin-bottom: 12px;">
        <div style="font-weight: 700; color: var(--neon-purple); margin-bottom: 4px;">🛠️ TOOL DISPATCHER</div>
-       <div style="color: var(--text-primary); font-family: monospace;">Available: [${state.behavior.toolUse ? 'web_search, read_file, rag_search' : 'none'}]</div>
+       <div style="color: var(--text-primary); font-family: monospace; font-size: 0.7rem;">Available: [${state.behavior?.toolUse ? 'web_search, read_file, write_file, query_knowledge_base, browser_action, handoff, delete_file' : 'none'}]</div>
+    </div>
+    <div style="margin-bottom: 12px;">
+       <div style="font-weight: 700; color: var(--neon-blue); margin-bottom: 4px;">📡 PROVIDER</div>
+       <div style="color: var(--text-primary); font-size: 0.7rem;">Ollama (local) | OpenAI | Anthropic — configurable via Enterprise Settings</div>
     </div>
     <div style="font-size: 0.65rem; color: var(--text-muted); text-align: center; margin-top: 12px; opacity: 0.5;">
-       Session active for ${state.agents[0]?.name || 'agent'} · Uptime: 2m 14s
+       ${state.agents?.[0]?.name || 'agent'} · Uptime: ${upMinutes}m ${upSeconds}s
     </div>
   `;
 }

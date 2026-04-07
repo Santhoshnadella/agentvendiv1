@@ -22,6 +22,7 @@ import adminRoutes from './routes/admin.js';
 import docsRoutes from './routes/docs.js';
 import configRoutes from './routes/config.js';
 import runtimeRoutes from './routes/runtime.js';
+import vendingRoutes from './routes/vending.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -53,6 +54,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api-docs', docsRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/runtime', runtimeRoutes);
+app.use('/api/v1', vendingRoutes);
 
 // ── Serve frontend in production ──
 const distPath = path.join(__dirname, '..', 'dist');
