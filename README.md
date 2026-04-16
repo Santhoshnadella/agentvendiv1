@@ -1,9 +1,9 @@
 # 🎰 AgentVendi
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/Santhoshnadella/agentvendiv1)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/Santhoshnadella/agentvendiv1)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/Santhoshnadella/agentvendiv1)
-[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)](https://github.com/Santhoshnadella/agentvendiv1/coverage)
+[![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)](https://github.com/Santhoshnadella/agentvendiv1/coverage)
 
 **The no-code vending machine for production-grade AI agents — local-first, enterprise-ready.**
 
@@ -60,17 +60,18 @@ cd agentvendiv1
 npm install
 ```
 
-### 2. Configure Environment
+### 2. Configure Environment & Data
 ```bash
 cp .env.example .env
-# Add your OLLAMA_HOST or OPENAI_API_KEY
+# Setup SQLite/Postgres schema
+npm run migrate -w @agentvendi/backend
 ```
 
 ### 3. Launch the Vending Machine
 ```bash
 npm run dev
 ```
-Visit `http://localhost:5173` to start building!
+Visit `http://localhost:3000` to start building!
 
 ---
 
@@ -86,7 +87,7 @@ Visit `http://localhost:5173` to start building!
 ## 🗺️ Roadmap
 
 - [x] **v1.0.0**: Core Vending Machine, Wizard UI, and Local LLM support.
-- [ ] **v1.1.0** (Q2 2026): Redis-backed horizontal scaling & Persistent Memory.
+- [x] **v1.1.0**: Redis-backed horizontal scaling, pgvector support, and Zod security hardening.
 - [ ] **v1.2.0** (Q3 2026): Multi-agent Swarm clusters & Cross-platform sync.
 - [ ] **v2.0.0** (Q4 2026): Enterprise SSO, Advanced Audit Logs, and Managed Cloud.
 
