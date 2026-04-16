@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query, querySingle } from '../db.js';
+import { query, querySingle } from '../db.ts';
 import { authenticateApiKey } from '../middleware/security.js';
 import { AgentRuntime } from '../lib/runtime.js';
 import { v4 as uuidv4 } from 'uuid';

@@ -58,3 +58,7 @@ export const AgentDefinitionSchema = z.object({
 });
 
 export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>;
+
+// Export Templates Library
+// @ts-ignore - library.js is a plain JS file
+export * from './templates/library.js';

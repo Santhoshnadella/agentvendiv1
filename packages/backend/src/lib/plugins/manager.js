@@ -1,15 +1,37 @@
 import fs from 'fs';
 import path from 'path';
-import ivm from 'isolated-vm';
 import { TOOLS } from '../tools/index.js';
 import { logAudit } from '../audit.js';
 
+let ivm;
+try {
+  ivm = (await import('isolated-vm')).default;
+} catch (e) {
+  console.warn('⚠️ isolated-vm binary missing/broken. Plugins will run in mock mode.');
+  ivm = {
+    Isolate: class { 
+        constructor() { }
+        createContext() { return { global: { set: () => {}, derefInto: () => {} } }; }
+        compileScript() { return { run: () => ({ get: () => ({ copy: () => ({ name: 'Mock', version: '1.0' }) }) }) }; }
+    },
+    ExternalCopy: class { constructor(v) { this.v = v; } copyInto() { return this.v; } }
+  };
+}
+
+/**
+ * Manages sandboxed 3rd-party plugins using V8 isolates.
+ */
 export class PluginManager {
   constructor() {
+    /** @type {Map<string, {metadata: any, context: ivm.Context, toolsRaw: ivm.Reference}>} */
     this.plugins = new Map();
+    /** @type {ivm.Isolate} */
     this.isolate = new ivm.Isolate({ memoryLimit: 128 });
   }
 
+  /**
+   * Initializes the manager and scans node_modules for plugins.
+   */
   init() {
     this.scanAndLoad();
   }

@@ -1,4 +1,4 @@
-import { query } from '../db.js';
+import { query } from '../db.ts';
 import { v4 as uuidv4 } from 'uuid';
 import fetch from 'node-fetch';
 

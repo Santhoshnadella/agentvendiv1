@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
-import { getDB, query, querySingle } from '../../db.js';
+import { getDB, query, querySingle } from '../../db.ts';
 import { v4 as uuidv4 } from 'uuid';
 
 export class MCPManager {
@@ -21,7 +21,7 @@ export class MCPManager {
 
     async connectToServer(serverConfig) {
         let transport;
-        
+
         if (serverConfig.transport_type === 'stdio') {
             const parts = serverConfig.connection_string.split(' ');
             const command = parts[0];
@@ -47,7 +47,7 @@ export class MCPManager {
             await client.connect(transport);
             this.clients.set(serverConfig.id, client);
             await query("UPDATE mcp_servers SET status = 'online' WHERE id = ?", [serverConfig.id]);
-            
+
             // Sync tools
             await this.syncTools(serverConfig.id, client);
             return client;
@@ -60,10 +60,10 @@ export class MCPManager {
     async syncTools(serverId, client) {
         try {
             const toolsResponse = await client.request({ method: 'tools/list' });
-            
+
             // Clear existing for this server
             await query('DELETE FROM mcp_tools WHERE server_id = ?', [serverId]);
-            
+
             if (toolsResponse && toolsResponse.tools) {
                 for (const tool of toolsResponse.tools) {
                     await query(`

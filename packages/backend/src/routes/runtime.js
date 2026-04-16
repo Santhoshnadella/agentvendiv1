@@ -4,15 +4,28 @@
 
 import { Router } from 'express';
 import { AgentRuntime, retryFromCheckpoint } from '../lib/runtime.js';
-import { getDB, query, querySingle } from '../db.js';
+import { getDB, query, querySingle } from '../db.ts';
 import { protectPrompt, authenticateApiKey } from '../middleware/security.js';
 import { optionalAuth } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
+import { z } from 'zod';
 
 const router = Router();
 
+const executeSchema = z.object({
+  input: z.string().min(1, 'Input must be at least 1 character long'),
+  config: z.object({
+    provider: z.string().optional(),
+    model: z.string().optional(),
+    maxTurns: z.number().int().min(1).max(50).optional(),
+    maxTimeMs: z.number().int().min(1000).optional(),
+    system_prompt: z.string().optional(),
+  }).optional(),
+});
+
 // ── Execute Agent ──────────────────────────────────────────
 // Supports both JWT auth and API Key auth
-router.post('/execute/:agentId', optionalAuth, authenticateApiKey, protectPrompt, async (req, res) => {
+router.post('/execute/:agentId', optionalAuth, authenticateApiKey, validate(executeSchema), protectPrompt, async (req, res) => {
   const { agentId } = req.params;
   const { input, config } = req.body;
   const userId = req.user?.id || 'anonymous';

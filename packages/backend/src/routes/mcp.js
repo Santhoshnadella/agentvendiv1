@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDB, query, querySingle } from '../db.js';
+import { getDB, query, querySingle } from '../db.ts';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { mcpManager } from '../lib/mcp/manager.js';
 import { v4 as uuidv4 } from 'uuid';

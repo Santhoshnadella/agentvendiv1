@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { query, querySingle } from '../db.js';
+import { query, querySingle } from '../db.ts';
 import { wsManager } from './websocket.js';
 import { logger } from './logger.js';
 

@@ -3,7 +3,7 @@
 // ============================================================
 
 import { Router } from 'express';
-import { getDB, query, querySingle } from '../db.js';
+import { getDB, query, querySingle } from '../db.ts';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();

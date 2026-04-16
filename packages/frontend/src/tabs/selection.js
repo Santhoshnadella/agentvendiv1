@@ -2,7 +2,7 @@
 // Tab 1 — Agent Selection (with Templates)
 // ============================================================
 
-import { TEMPLATES, getAllCategories } from '../templates/library.js';
+import { TEMPLATES, getAllCategories } from '../../../shared/src/templates/library.js';
 
 export function renderSelectionTab(container, state) {
   container.innerHTML = `

@@ -6,7 +6,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuid } from 'uuid';
-import { getDB, query, querySingle } from '../db.js';
+import { getDB, query, querySingle } from '../db.ts';
 import { authenticateToken, JWT_SECRET } from '../middleware/auth.js';
 
 const router = Router();

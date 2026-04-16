@@ -12,13 +12,13 @@ describe('Database Abstraction Layer', () => {
 
     beforeEach(() => {
         vi.resetModules();
-        if(!fs.existsSync(dataDir)) {
-           fs.mkdirSync(dataDir, { recursive: true });
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
         }
     });
 
     afterEach(async () => {
-        const db = await import('../server/db.js');
+        const db = await import('../packages/backend/src/db.ts');
         await db.closeSession();
     });
 
@@ -28,18 +28,18 @@ describe('Database Abstraction Layer', () => {
             const dbPath = path.join(dataDir, 'test.db');
             process.env.SQLITE_DB_PATH = dbPath;
 
-            const db = await import('../server/db.js');
+            const db = await import('../packages/backend/src/db.ts');
             await db.initDB();
             expect(db.getDBType()).toBe('sqlite');
 
             // Quick table creation via query
             await db.query('CREATE TABLE IF NOT EXISTS test_table (id TEXT PRIMARY KEY, val TEXT)');
             await db.query('DELETE FROM test_table');
-            
+
             // Param translation validation
             const id = uuidv4();
             await db.query('INSERT INTO test_table (id, val) VALUES (?, ?)', [id, 'hello']);
-            
+
             const row = await db.querySingle('SELECT * FROM test_table WHERE id = ?', [id]);
             expect(row).toBeDefined();
             expect(row.val).toBe('hello');
@@ -47,8 +47,8 @@ describe('Database Abstraction Layer', () => {
 
         it('should execute transactions correctly', async () => {
             process.env.DB_TYPE = 'sqlite';
-            const db = await import('../server/db.js');
-            
+            const db = await import('../packages/backend/src/db.ts');
+
             await db.withTransaction(async (q) => {
                 await q('INSERT INTO test_table (id, val) VALUES (?, ?)', [uuidv4(), 'tx1']);
                 await q('INSERT INTO test_table (id, val) VALUES (?, ?)', [uuidv4(), 'tx2']);
@@ -91,14 +91,14 @@ describe('Database Abstraction Layer', () => {
                 };
             });
 
-            const db = await import('../server/db.js');
+            const db = await import('../packages/backend/src/db.ts');
             await db.initDB();
             expect(db.getDBType()).toBe('postgresql');
 
             const id = uuidv4();
             // This should trigger the mockup and pass
             await db.query('INSERT INTO test_table (id, val) VALUES (?, ?)', [id, 'hello']);
-            
+
             const row = await db.querySingle('SELECT * FROM test_table WHERE id = ?', [id]);
             expect(row).toBeDefined();
             expect(row.val).toBe('hello');

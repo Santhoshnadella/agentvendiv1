@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDB, query, querySingle } from '../db.js';
+import { getDB, query, querySingle } from '../db.ts';
 
 const router = Router();
 

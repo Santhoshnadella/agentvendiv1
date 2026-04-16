@@ -8,7 +8,7 @@
 
 import { Router } from 'express';
 import { AgentRuntime } from '../lib/runtime.js';
-import { getDB, query, querySingle } from '../db.js';
+import { getDB, query, querySingle } from '../db.ts';
 import { authenticateApiKey, generateApiKey, protectPrompt } from '../middleware/security.js';
 import { authenticateToken } from '../middleware/auth.js';
 import crypto from 'crypto';

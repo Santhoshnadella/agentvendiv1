@@ -12,7 +12,7 @@
 //   - HITL approvals with DB-backed state machine
 //
 
-import { getDB, query, querySingle } from '../db.js';
+import { getDB, query, querySingle } from '../db.ts';
 import { v4 as uuidv4 } from 'uuid';
 import { mcpManager } from './mcp/manager.js';
 import { wsManager, hitlBus } from './websocket.js';
@@ -21,6 +21,8 @@ import { logAudit } from './audit.js';
 import { logger } from './logger.js';
 import pRetry from 'p-retry';
 import { z } from 'zod';
+import { TOOLS } from './tools/index.js';
+import { redis } from './redis.js';
 
 // ── LLM Provider Configuration ─────────────────────────────
 const PROVIDERS = {
@@ -72,164 +74,65 @@ const PROVIDERS = {
   },
 };
 
-// ── Tool Registry ──────────────────────────────────────────
-const TOOLS = {
-  web_search: {
-    description: 'Search the web for real-time information.',
-    parameters: {
-      type: 'object',
-      properties: { query: { type: 'string', description: 'The search query' } },
-      required: ['query']
-    },
-    execute: async ({ query }) => {
-      // Production: integrate with SerpAPI, Tavily, or Brave Search
-      return `Search results for: "${query}"\n1. Relevant documentation found\n2. Related Stack Overflow threads\n3. Official API references`;
-    }
-  },
-  read_file: {
-    description: 'Read the contents of a file.',
-    parameters: {
-      type: 'object',
-      properties: { path: { type: 'string', description: 'Path to the file' } },
-      required: ['path']
-    },
-    execute: async ({ path }) => {
-      // Safety: validate path is within allowed directories
-      const safePath = path.replace(/\.\./g, '').replace(/^\//, '');
-      return `[Content of ${safePath}] — File read operation completed. Content available in context.`;
-    }
-  },
-  handoff: {
-    description: 'Hand off the current task to another agent in the crew.',
-    parameters: {
-      type: 'object',
-      properties: {
-        agent_name: { type: 'string', description: 'Name of the agent to hand off to' },
-        context: { type: 'string', description: 'Context and instructions for the next agent' }
-      },
-      required: ['agent_name', 'context']
-    },
-    execute: async ({ agent_name, context }) => {
-      return `Handoff to [${agent_name}] initiated. Context passed: "${context.substring(0, 100)}..."`;
-    }
-  },
-  browser_action: {
-    description: 'Perform a browser automation action. Supports navigate, click, type, and screenshot.',
-    parameters: {
-      type: 'object',
-      properties: {
-        url: { type: 'string' },
-        action: { type: 'string', enum: ['navigate', 'click', 'type', 'screenshot'] },
-        selector: { type: 'string' },
-        text: { type: 'string' }
-      },
-      required: ['url', 'action']
-    },
-    // NOTE: Real Playwright integration is attempted first.
-    // Falls back to simulation if Playwright is not installed.
-    execute: async ({ url, action, selector, text }) => {
-      try {
-        const { chromium } = await import('playwright');
-        const browser = await chromium.launch({ headless: true });
-        const page = await browser.newPage();
+// TOOLS are imported from ./tools/index.js
 
-        let result = '';
-        if (action === 'navigate') {
-          await page.goto(url, { timeout: 15000 });
-          result = `Navigated to ${url}. Title: "${await page.title()}"`;
-        } else if (action === 'click' && selector) {
-          await page.goto(url, { timeout: 15000 });
-          await page.click(selector);
-          result = `Clicked element [${selector}] on ${url}`;
-        } else if (action === 'type' && selector && text) {
-          await page.goto(url, { timeout: 15000 });
-          await page.fill(selector, text);
-          result = `Typed "${text}" into [${selector}] on ${url}`;
-        } else if (action === 'screenshot') {
-          await page.goto(url, { timeout: 15000 });
-          const buffer = await page.screenshot({ type: 'png' });
-          result = `Screenshot taken of ${url}. [${buffer.length} bytes captured]`;
-        }
 
-        await browser.close();
-        return result;
-      } catch (playwrightError) {
-        // Graceful fallback to simulation
-        return `[Simulated] Browser ${action} on ${url}. Install 'playwright' for real browser automation. Error: ${playwrightError.message}`;
-      }
-    }
-  },
-  query_knowledge_base: {
-    description: 'Search the agent knowledge base using semantic similarity.',
-    parameters: {
-      type: 'object',
-      properties: { query: { type: 'string' } },
-      required: ['query']
-    },
-    execute: async ({ query }) => {
-      // Real vector search against vector_docs table
-      try {
-        const db = getDB();
-        const docs = (await query(
-          'SELECT content, metadata FROM vector_docs ORDER BY created_at DESC LIMIT 100',
-          []
-        ));
-        if (docs.length === 0) return 'No documents in knowledge base.';
-
-        // Keyword-based ranking (production: use cosine similarity on embeddings)
-        const queryWords = query.toLowerCase().split(/\s+/);
-        const scored = docs.map(doc => {
-          const words = doc.content.toLowerCase();
-          let score = 0;
-          queryWords.forEach(w => { if (words.includes(w)) score++; });
-          return { ...doc, score };
-        }).filter(d => d.score > 0).sort((a, b) => b.score - a.score);
-
-        if (scored.length === 0) return 'No relevant documents found for query.';
-        return `Found ${scored.length} relevant document(s):\n${scored.slice(0, 3).map((d, i) => `${i + 1}. ${d.content.substring(0, 200)}...`).join('\n')}`;
-      } catch (e) {
-        return `Knowledge base search failed: ${e.message}`;
-      }
-    }
-  },
-  write_file: {
-    description: 'Write or update a file. SENSITIVE: Requires human approval.',
-    parameters: {
-      type: 'object',
-      properties: { path: { type: 'string' }, content: { type: 'string' } },
-      required: ['path', 'content']
-    },
-    requiresApproval: true,
-    execute: async ({ path, content }) => {
-      const safePath = path.replace(/\.\./g, '').replace(/^\//, '');
-      return `File [${safePath}] written successfully (${content.length} chars).`;
-    }
-  },
-  delete_file: {
-    description: 'Delete a file permanently. SENSITIVE: Requires human approval.',
-    parameters: {
-      type: 'object',
-      properties: { path: { type: 'string' } },
-      required: ['path']
-    },
-    requiresApproval: true,
-    execute: async ({ path }) => {
-      return `File [${path}] deleted.`;
-    }
-  }
-};
-
-// ── Runtime Engine ─────────────────────────────────────────
+/**
+ * Agent Runtime Engine — Production-Grade ReAct Loop
+ */
 export class AgentRuntime {
+  /**
+   * @param {string} agentId - UUID of the agent record
+   * @param {string} userId - UUID of the owner
+   */
   constructor(agentId, userId) {
     this.agentId = agentId;
     this.userId = userId;
     this.db = getDB();
+    /** @type {string|null} */
     this.runId = null;
+    /** @type {number} */
     this.totalTokens = 0;
+    /** @type {number} */
     this.turnNumber = 0;
+    /** @type {string[]} */
     this.toolCallHistory = []; // For loop detection
+    /** @type {number|null} */
     this.startTime = null;
+  }
+
+  /**
+   * Persists current runtime state to Redis
+   */
+  async persistState() {
+    if (!this.runId) return;
+    const state = {
+        agentId: this.agentId,
+        userId: this.userId,
+        turnNumber: this.turnNumber,
+        totalTokens: this.totalTokens,
+        toolCallHistory: this.toolCallHistory,
+        startTime: this.startTime
+    };
+    await redis.set(`agent_run:state:${this.runId}`, state, 86400); // 24h TTL
+  }
+
+  /**
+   * Restores runtime state from Redis
+   */
+  async restoreFromState(runId) {
+    const state = await redis.get(`agent_run:state:${runId}`);
+    if (state) {
+        this.runId = runId;
+        this.agentId = state.agentId;
+        this.userId = state.userId;
+        this.turnNumber = state.turnNumber;
+        this.totalTokens = state.totalTokens;
+        this.toolCallHistory = state.toolCallHistory;
+        this.startTime = state.startTime;
+        return true;
+    }
+    return false;
   }
 
   /**
@@ -274,6 +177,9 @@ export class AgentRuntime {
           totalTokens: this.totalTokens,
           turn: this.turnNumber
       });
+
+      // Persist to Redis for clustering/resilience
+      await this.persistState();
 
       // Broadcast step start over WebSocket (already handled in Engine partly, but status update here)
       wsManager.broadcast(`run:${this.runId}`, 'step_update', {

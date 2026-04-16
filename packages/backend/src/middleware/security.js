@@ -9,7 +9,7 @@
 //   4. API Key Auth        — For Vending Machine API consumers
 //
 
-import { getDB, query, querySingle } from '../db.js';
+import { getDB, query, querySingle } from '../db.ts';
 import crypto from 'crypto';
 
 // ── Layer 1: Audit Logger ──────────────────────────────────

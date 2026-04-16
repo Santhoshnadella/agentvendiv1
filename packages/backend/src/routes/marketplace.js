@@ -4,7 +4,7 @@
 
 import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
-import { getDB, query, querySingle } from '../db.js';
+import { getDB, query, querySingle } from '../db.ts';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 
 const router = Router();

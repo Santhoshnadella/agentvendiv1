@@ -1,11 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { initDB, query, getDBType, closeSession } from '../server/db.js';
+import { initDB, query, getDBType, closeSession } from './src/db.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
+const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
 
 async function setupMigrationTable() {
     await query(`
