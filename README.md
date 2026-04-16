@@ -14,28 +14,63 @@ AgentVendi is a powerhouse orchestration platform that transforms fragmented AI 
 ## 📸 Visual Tour
 
 <p align="center">
-  <img src="assets/screenshots/wizard_flow.png" width="45%" alt="Wizard Flow" />
-  <img src="assets/screenshots/cognitive_matching.png" width="45%" alt="Cognitive Matching" />
+  <img src="packages/frontend/assets/screenshots/wizard_flow.png" width="45%" alt="Wizard Flow" />
+  <img src="packages/frontend/assets/screenshots/cognitive_matching.png" width="45%" alt="Cognitive Matching" />
 </p>
 <p align="center">
-  <i>The 5-step Agent Creation Wizard and AI-assisted Cognitive Matching in action.</i>
+  <i>The 7-step Agent Creation Wizard and AI-assisted Cognitive Matching in action.</i>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/export_dash.png" width="45%" alt="Export Dashboard" />
-  <img src="assets/screenshots/k8s_dash.png" width="45%" alt="K8s Dashboard" />
+  <img src="packages/frontend/assets/screenshots/export_dash.png" width="45%" alt="Export Dashboard" />
+  <img src="packages/frontend/assets/screenshots/k8s_dash.png" width="45%" alt="K8s Dashboard" />
 </p>
 <p align="center">
   <i>Multi-format export options (Docker, K8s, SDK) and integrated infrastructure monitoring.</i>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/local_suggestions.png" width="45%" alt="Local Suggestions" />
-  <img src="assets/screenshots/observability.png" width="45%" alt="Observability" />
+  <img src="packages/frontend/assets/screenshots/local_suggestions.png" width="45%" alt="Local Suggestions" />
+  <img src="packages/frontend/assets/screenshots/observability.png" width="45%" alt="Observability" />
 </p>
 <p align="center">
   <i>Real-time local LLM suggestions and deep trace-level observability.</i>
 </p>
+
+---
+
+## 🛠️ Tech Stack & Languages
+
+AgentVendi is built with a modern, high-performance stack for local-first AI orchestration.
+
+- **Languages**: TypeScript, JavaScript (ESM), SQL, HTML/CSS.
+- **Backend**:
+    - **Runtime**: Node.js (Express.js framework).
+    - **Intelligence**: Ollama (Local LLMs), MCP SDK (Tool usage), Isolated-VM (Sandboxing).
+    - **Persistence**: PostgreSQL (Primary), SQLite (Edge), Redis (State/Scaling).
+    - **Reliability**: Zod (Validation), Winston (Logging), Playwright (Automation).
+- **Frontend**:
+    - **Build Tool**: Vite.
+    - **UI Engine**: Vanilla TS/JS with ZUI components.
+    - **Client AI**: Xenova Transformers (In-browser ML).
+- **Infrastructure**: Docker, Kubernetes, GitHub Actions.
+
+---
+
+## 🏗️ Core Architecture
+
+```mermaid
+graph TD
+    A[Vite/Vanilla UI] -->|Build Config| B[Agent Definition JSON]
+    B -->|Execute| C[Node.js Runtime]
+    C -->|Reasoning| D{Ollama / LLM}
+    C -->|State| E[(Redis Cache)]
+    C -->|Data| F[(PostgreSQL / SQLite)]
+    D -->|Tool Call| G[MCP Tool Dispatcher]
+    G -->|Execution| H[Sandboxed V8 Isolate]
+    H -->|Results| C
+    C -->|Logs| I[Observability Dashboard]
+```
 
 ---
 
@@ -63,12 +98,13 @@ npm install
 ### 2. Configure Environment & Data
 ```bash
 cp .env.example .env
-# Setup SQLite/Postgres schema
-npm run migrate -w @agentvendi/backend
+# Setup schemas (Postgres or SQLite)
+npm run migrate
 ```
 
-### 3. Launch the Vending Machine
+### 3. Launch the Machine
 ```bash
+# Starts both Frontend and Backend
 npm run dev
 ```
 Visit `http://localhost:3000` to start building!

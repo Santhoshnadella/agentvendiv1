@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "concurrently \"npm run dev -w @agentvendi/frontend\" \"npm run dev -w @agentvendi/backend\"",
     "build": "npm run build --workspaces",
+    "migrate": "npm run migrate -w @agentvendi/backend",
     "test": "npm test --workspaces",
     "lint": "npm run lint --workspaces",
     "docker:build": "docker build -t agentvendi .",

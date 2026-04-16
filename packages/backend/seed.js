@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { initDB, query, closeSession } from '../server/db.js';
+import { initDB, query, closeSession } from './src/db.ts';
 
 async function runSeed() {
     console.log('🌱 Starting DB seeding...');

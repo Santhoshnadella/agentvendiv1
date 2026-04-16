@@ -1,187 +1,84 @@
 # AgentVendi v1 — Deployment Guide
 
-## Option 1: Vercel (Frontend) + Railway (Backend)
+AgentVendi is a monorepo. Deployments typically involve building the shared package, then the frontend and backend.
+
+## 📦 Monorepo Build Process
+
+Before deploying any part of the app, ensure all dependencies are installed and shared packages are built:
+```bash
+npm install
+npm run build --workspaces
+```
+
+---
+
+## ☁️ Option 1: Vercel (Frontend) + Dedicated Backend
 
 ### Frontend → Vercel
-```bash
-# 1. Install Vercel CLI
-npm i -g vercel
+1. In Vercel dashboard:
+   - **Root Directory**: `packages/frontend`
+   - **Build Command**: `vite build`
+   - **Output Directory**: `dist`
+2. Configure **Environment Variables**:
+   - `VITE_API_URL`: URL of your deployed backend.
 
-# 2. Build the frontend
-npm run build
-
-# 3. Deploy
-vercel --prod
-```
-
-In Vercel dashboard:
-- Set **Build Command**: `npm run build`
-- Set **Output Directory**: `dist`
-- Set **Root Directory**: `.` (project root)
-
-### Backend → Railway
-```bash
-# 1. Push code to GitHub
-
-# 2. Connect Railway to your repo
-# Go to https://railway.app → New Project → Deploy from GitHub
-
-# 3. Set environment variables in Railway dashboard:
-#    PORT=3001
-#    JWT_SECRET=your-strong-secret-here
-#    NODE_ENV=production
-
-# 4. Set start command: node server/index.js
-```
-
-Update your Vercel frontend to point API calls to the Railway URL:
-```javascript
-// lib/api.js — Update BASE_URL
-const BASE_URL = 'https://your-app.up.railway.app/api';
-```
+### Backend → VPS / Railway
+1. **Build Command**: `npm run build -w @agentvendi/backend`
+2. **Start Command**: `npm run start -w @agentvendi/backend`
+3. **Internal Port**: `3001`
 
 ---
 
-## Option 2: Render (Full-Stack)
+## 🐳 Option 2: Docker / Docker Compose (Recommended)
 
-```bash
-# 1. Push to GitHub
-
-# 2. Go to https://render.com → New Web Service → Connect repo
-
-# 3. Settings:
-#    Build Command: npm install && npm run build
-#    Start Command: node server/index.js
-#    Environment: Node
-
-# 4. Add environment variables:
-#    PORT=3001
-#    JWT_SECRET=your-strong-secret
-#    NODE_ENV=production
-```
-
-Render serves both frontend (from `dist/`) and backend from the same process.
-
----
-
-## Option 3: Docker Self-Host
+The easiest way to self-host is using the provided Docker configuration.
 
 ```bash
 # 1. Build and run
 docker-compose up --build -d
 
-# 2. Access at http://localhost:3001
-
-# 3. To update
-docker-compose pull && docker-compose up --build -d
-```
-
-For production, add a reverse proxy (Nginx/Caddy):
-```nginx
-server {
-    listen 80;
-    server_name agentvendi.yourdomain.com;
-
-    location / {
-        proxy_pass http://localhost:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-    }
-}
+# 2. Setup database
+npm run migrate
 ```
 
 ---
 
-## Option 4: VPS (Ubuntu 22.04)
+## 🛠️ Infrastructure Requirements
 
-```bash
-# 1. SSH into your VPS
-ssh root@your-server-ip
+### 1. Database (PostgreSQL / SQLite)
+AgentVendi supports PostgreSQL (Production) and SQLite (Local).
+- **PostgreSQL**: Set `DATABASE_URL` and `DB_TYPE=postgresql`.
+- **SQLite**: Default. Uses file at `data/agentvendi.db`.
 
-# 2. Install Node.js
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# 3. Clone the repo
-git clone https://github.com/yourusername/agentvendi.git
-cd agentvendi
-
-# 4. Install deps + build
-npm install
-npm run build
-
-# 5. Set environment variables
-export JWT_SECRET="your-strong-secret"
-export PORT=3001
-export NODE_ENV=production
-
-# 6. Install PM2 for process management
-sudo npm install -g pm2
-
-# 7. Start the server
-pm2 start server/index.js --name agentvendi
-
-# 8. Auto-start on reboot
-pm2 startup
-pm2 save
-
-# 9. Set up Caddy as reverse proxy (auto-SSL)
-sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-sudo apt update && sudo apt install caddy
-
-# 10. Configure Caddy
-echo "agentvendi.yourdomain.com {
-  reverse_proxy localhost:3001
-}" | sudo tee /etc/caddy/Caddyfile
-sudo systemctl restart caddy
-```
+### 2. State Management (Redis)
+Required for horizontal scaling and background jobs.
+- Set `REDIS_URL=redis://your-redis-host:6379`.
 
 ---
 
-## Environment Variables
+## 📋 Environment Variables
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `PORT` | No | `3001` | Server port |
-| `JWT_SECRET` | **Yes** | `agentvendi-secret...` | Change in production! |
-| `NODE_ENV` | No | `development` | Set to `production` |
-
-## Pre-Deploy Checklist
-
-- [ ] Change `JWT_SECRET` to a strong random string
-- [ ] Run `npm run build` to generate `dist/`
-- [ ] Test with `NODE_ENV=production node server/index.js`
-- [ ] Set up HTTPS (Caddy auto-SSL or Let's Encrypt)
-- [ ] Create first admin account, then check `/admin`
+| `PORT` | No | `3001` | Backend port |
+| `DB_TYPE` | No | `sqlite` | `sqlite` or `postgresql` |
+| `DATABASE_URL` | No | - | Postgres connection string |
+| `REDIS_URL` | No | - | Redis connection string |
+| `JWT_SECRET` | **Yes** | - | Secret for agent authentication |
+| `OLLAMA_HOST` | No | `http://localhost:11434` | Your local LLM instance |
 
 ---
 
-## 🌐 Hosting a Live Public Demo
+## ✅ Pre-Deploy Checklist
 
-To host a public demo with a persistent backend (Vercel + Supabase/Ollama):
+- [ ] Set a strong `JWT_SECRET`.
+- [ ] Run `npm run migrate` to initialize your database.
+- [ ] Verify `REDIS_URL` if deploying to a cluster.
+- [ ] Ensure `packages/frontend/dist` is served via a reverse proxy (Nginx/Caddy) if self-hosting.
 
-### 1. Database (Supabase / Postgres)
-AgentVendi uses SQLite by default but supports Postgres for production. 
-1. Create a free project on [Supabase](https://supabase.com).
-2. Get your connection string (e.g., `postgres://postgres.abc...`)
-3. Set `DATABASE_URL` in your environment variables.
+---
 
-### 2. LLM Backend (Ollama / Groq / OpenAI)
-For a "Live Demo", you have two options:
-- **Local Proxy**: Use [Cloudflare Tunnels](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) to expose your local Ollama instance securely.
-- **API Provider**: Use Groq or OpenAI for the demo backend by setting `OPENAI_API_KEY`.
-
-### 3. Vercel Deployment
-```bash
-# Push to GitHub, then click "New Project" in Vercel
-# Set the following Environment Variables:
-# DATABASE_URL=postgres://...
-# JWT_SECRET=...
-# OPENAI_API_KEY=... (optional)
-```
-AgentVendi detects the environment and switches to production mode automatically.
+<p align="center">
+  <i>Enterprise intelligence, orchestrated.</i>
+</p>
 
